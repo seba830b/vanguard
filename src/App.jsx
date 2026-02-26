@@ -17,7 +17,7 @@ import {
 // --- INITIAL DEFAULT DATA ---
 const DEFAULT_CONFIG = {
   identity: {
-    siteName: "what you need me to do",
+    siteName: "The vanguard",
     tagline: "Voice of the Red Commune",
     mastheadDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     aboutTitle: "The Program",
