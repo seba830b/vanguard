@@ -2,9 +2,11 @@ export async function onRequest(context) {
   const { env } = context;
 
   try {
-    const accessToken = await getGoogleToken(env.GA_CLIENT_EMAIL, env.GA_PRIVATE_KEY);
+    // 1. Generate a Google Access Token using Native Web Crypto (No EvalError)
+    const accessToken = await getAccessToken(env.GA_CLIENT_EMAIL, env.GA_PRIVATE_KEY);
 
-    const apiRes = await fetch(
+    // 2. Query the GA4 Data API directly via standard fetch
+    const apiResponse = await fetch(
       `https://analyticsdata.googleapis.com/v1beta/properties/${env.GA_PROPERTY_ID}:runReport`,
       {
         method: 'POST',
@@ -21,24 +23,25 @@ export async function onRequest(context) {
       }
     );
 
-    const data = await apiRes.json();
-    return new Response(JSON.stringify({ success: true, data }), {
-      headers: { 'Content-Type': 'application/json' }
+    const report = await apiResponse.json();
+    return new Response(JSON.stringify({ success: true, data: report }), {
+      headers: { 'Content-Type': 'application/json' },
     });
-  } catch (err) {
-    return new Response(JSON.stringify({ success: false, error: err.message }), {
+  } catch (error) {
+    return new Response(JSON.stringify({ success: false, error: error.message }), {
       status: 500,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
 }
 
-async function getGoogleToken(email, privateKey) {
-  const cleanKey = privateKey.replace(/\\n/g, '\n').replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
-  const der = Uint8Array.from(atob(cleanKey), c => c.charCodeAt(0));
+// --- HELPER: GOOGLE AUTH WITHOUT LIBRARIES ---
+async function getAccessToken(email, privateKey) {
+  const pemContents = privateKey.replace(/\\n/g, '\n').replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
+  const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
 
-  const key = await crypto.subtle.importKey(
-    "pkcs8", der,
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8", binaryDer,
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false, ["sign"]
   );
@@ -51,8 +54,9 @@ async function getGoogleToken(email, privateKey) {
     scope: "https://www.googleapis.com/auth/analytics.readonly",
   }));
 
-  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${payload}`));
-  const jwt = `${header}.${payload}.${b64(signature)}`;
+  const unsignedJwt = `${header}.${payload}`;
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, new TextEncoder().encode(unsignedJwt));
+  const jwt = `${unsignedJwt}.${b64(signature)}`;
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -60,11 +64,12 @@ async function getGoogleToken(email, privateKey) {
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   });
 
-  const d = await res.json();
-  return d.access_token;
+  const data = await res.json();
+  if (!data.access_token) throw new Error(data.error_description || "Auth Failed");
+  return data.access_token;
 }
 
-function b64(s) {
-  const b = typeof s === "string" ? new TextEncoder().encode(s) : new Uint8Array(s);
-  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+function b64(src) {
+  const buf = typeof src === "string" ? new TextEncoder().encode(src) : new Uint8Array(src);
+  return btoa(String.fromCharCode(...buf)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
