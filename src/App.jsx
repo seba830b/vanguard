@@ -10,8 +10,8 @@ import {
   Settings, Terminal, Database, Palette, 
   FileText, ChevronRight, CheckCircle,
   Image as ImageIcon, Eye, Edit3, Link as LinkIcon,
-  Plus, Trash2, Users, BarChart, ChevronLeft
-  Moon, Sun //
+  Plus, Trash2, Users, BarChart, ChevronLeft,
+  Moon, Sun
 } from 'lucide-react';
 
 // --- INITIAL DEFAULT DATA ---
