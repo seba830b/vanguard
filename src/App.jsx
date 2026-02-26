@@ -1,83 +1,61 @@
 import React, { useState } from 'react';
 import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useClerk, UserButton } from "@clerk/clerk-react";
 import { 
-  Globe, Lock, Settings, Terminal, Database, Palette, 
-  FileText, Users, LogOut, ChevronRight, CheckCircle,
-  AlertTriangle, Image as ImageIcon, Eye, Edit3, Link as LinkIcon, Plus, Trash2, BarChart
+  Settings, Terminal, Database, Palette, 
+  FileText, LogOut, ChevronRight, CheckCircle,
+  Image as ImageIcon, Eye, Edit3, Link as LinkIcon,
+  Plus, Trash2, Users, BarChart
 } from 'lucide-react';
 
-// --- INITIAL STATE & MOCK DATA ---
+// --- INITIAL DEFAULT DATA ---
 const DEFAULT_CONFIG = {
   identity: {
     siteName: "The Vanguard Dispatch",
     tagline: "Voice of the Red Commune",
     mastheadDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     aboutTitle: "The Program",
-    aboutText: "We are the vanguard. Our mission is to dismantle the archaic structures of capital and forge a new paradigm of collective ownership. \n\n1. Abolition of private property.\n2. Heavy progressive income tax.\n3. Centralization of credit.\n4. Free education for all in public schools."
+    aboutText: "We are the vanguard. Our mission is to dismantle the archaic structures of capital and forge a new paradigm of collective ownership.\n\n1. Abolition of private property.\n2. Heavy progressive income tax.\n3. Centralization of credit."
   },
-  theme: {
-    primary: "#990000",
-    accent: "#FFD700",
-    background: "#FDFBF7",
-    text: "#222222",
-    fontFamily: "serif"
-  },
+  theme: { primary: "#990000", accent: "#FFD700", background: "#FDFBF7", text: "#222222", fontFamily: "serif" },
   categories: ["Current Struggle", "Theory & Education", "International", "The Archives"],
-  integrations: {
-    dbEndpoint: "mongodb+srv://vanguard-cluster.abc.mongodb.net/prod",
-    apiWebhook: "https://api.redcommune.org/v1/publish",
-    cliToken: "rc_sec_8f92a1b948c730"
-  },
+  integrations: { dbEndpoint: "mongodb+srv://cluster.mongodb.net", apiWebhook: "https://api.redcommune.org/publish", cliToken: "rc_sec_8f92a" },
   team: [
-    { email: "admin@vanguard.dk", role: "admin" }
+    { email: "admin@vanguard.org", role: "admin" },
+    { email: "mod@vanguard.org", role: "moderator" }
   ]
 };
 
 const INITIAL_ARTICLES = [
-  {
-    id: 1,
-    title: "The Strike Wave Spreads: Port Workers Paralyze Supply Chains",
-    category: "Current Struggle",
-    excerpt: "In an unprecedented show of solidarity, port workers across the eastern seaboard have downed tools. The demands are clear: immediate nationalization of logistics networks.",
-    date: "October 24, 2024",
+  { 
+    id: 1, 
+    title: "The Strike Wave Spreads", 
+    category: "Current Struggle", 
+    excerpt: "Port workers across the eastern seaboard have downed tools. The demands are clear: immediate nationalization of logistics networks.", 
+    date: "Oct 24, 2026", 
     featured: true,
     imageUrl: "https://images.unsplash.com/photo-1506869640319-ce1a4484c2eb?auto=format&fit=crop&q=80&w=1000"
   },
-  {
-    id: 2,
-    title: "Reading Capital in the 21st Century",
-    category: "Theory & Education",
-    excerpt: "A re-examination of intrinsic value in the age of algorithmic trading and digital enclosures.",
-    date: "October 22, 2024",
+  { 
+    id: 2, 
+    title: "Reading Capital Today", 
+    category: "Theory & Education", 
+    excerpt: "A re-examination of intrinsic value in the modern age.", 
+    date: "Oct 22, 2026", 
     featured: false,
     imageUrl: ""
-  }
+  },
 ];
 
 // --- MAIN APPLICATION COMPONENT ---
-export default function App() {
-  // Safe environment check for Vite
-  let PUBLISHABLE_KEY = "";
-  try {
-    PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
-  } catch (err) {
-    PUBLISHABLE_KEY = "";
-  }
+export default function AppWrapper() {
+  const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
   if (!PUBLISHABLE_KEY) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-10 font-sans">
-         <div className="bg-red-900/20 border border-red-500 text-red-100 p-8 rounded-lg max-w-lg text-center font-mono shadow-2xl">
-            <h2 className="text-xl font-bold mb-2 uppercase tracking-tight">Missing Clerk API Key</h2>
-            <p className="text-sm opacity-80 mb-6">
-              The application cannot initialize authentication.
-            </p>
-            <div className="text-xs text-left bg-black/40 p-4 rounded space-y-3 leading-relaxed border border-red-500/20">
-              <p>1. Ensure <code>.env.local</code> is in your project root.</p>
-              <p>2. Add: <code>VITE_CLERK_PUBLISHABLE_KEY=pk_test_...</code></p>
-              <p>3. If deployed on Cloudflare, add it to <b>Settings &rarr; Environment Variables</b>.</p>
-              <p>4. Restart your terminal with <code>npm run dev</code>.</p>
-            </div>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-10">
+         <div className="bg-red-900/20 border border-red-500 text-red-100 p-6 rounded-lg max-w-lg text-center font-mono">
+            <h2 className="text-xl font-bold mb-2 uppercase">Missing Clerk API Key</h2>
+            <p className="text-sm">Please check your <code>.env.local</code> file.</p>
          </div>
       </div>
     );
@@ -93,23 +71,10 @@ export default function App() {
 function VanguardApp() {
   const [view, setView] = useState('public'); 
   
-  // Safe deep merge to prevent white screen crashes from corrupted local storage
   const [config, setConfig] = useState(() => {
     try {
       const saved = localStorage.getItem('vanguard_config');
-      if (!saved) return DEFAULT_CONFIG;
-      const parsed = JSON.parse(saved);
-      if (typeof parsed !== 'object' || parsed === null) return DEFAULT_CONFIG;
-
-      return {
-        ...DEFAULT_CONFIG,
-        ...parsed,
-        identity: { ...DEFAULT_CONFIG.identity, ...(parsed?.identity || {}) },
-        theme: { ...DEFAULT_CONFIG.theme, ...(parsed?.theme || {}) },
-        integrations: { ...DEFAULT_CONFIG.integrations, ...(parsed?.integrations || {}) },
-        categories: parsed?.categories || DEFAULT_CONFIG.categories,
-        team: parsed?.team || DEFAULT_CONFIG.team
-      };
+      return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
     } catch (e) {
       return DEFAULT_CONFIG;
     }
@@ -118,9 +83,7 @@ function VanguardApp() {
   const [articles, setArticles] = useState(() => {
     try {
       const saved = localStorage.getItem('vanguard_articles');
-      if (!saved) return INITIAL_ARTICLES;
-      const parsed = JSON.parse(saved);
-      return Array.isArray(parsed) ? parsed : INITIAL_ARTICLES;
+      return saved ? JSON.parse(saved) : INITIAL_ARTICLES;
     } catch (e) {
       return INITIAL_ARTICLES;
     }
@@ -128,6 +91,7 @@ function VanguardApp() {
 
   return (
     <div className="min-h-screen relative font-sans transition-colors duration-300">
+      
       {view === 'public' && (
         <PublicSite 
           config={config} 
@@ -140,20 +104,19 @@ function VanguardApp() {
         <>
           <SignedOut>
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 p-4">
-              <div className="mb-8 text-center animate-in fade-in duration-500">
-                <Terminal size={48} className="mx-auto mb-4 text-red-500" />
-                <h2 className="text-2xl text-white font-bold uppercase tracking-wider">System Override</h2>
-                <p className="text-gray-400 text-sm mt-2 mb-6">Central dispatch terminal access.</p>
+              <div className="mb-8 text-center">
+                <Terminal size={48} className="mx-auto mb-4" style={{ color: config.theme.primary }} />
+                <h2 className="text-2xl text-white font-bold uppercase tracking-wider">Vanguard CMS Access</h2>
+                <p className="text-gray-400 text-sm mt-2 mb-6">Authorized personnel only.</p>
               </div>
               
-              {/* CRITICAL FIX: routing="hash" prevents the white screen crash on single-page apps */}
-              <SignIn routing="hash" forceRedirectUrl="/" />
+              <SignIn routing="hash" />
               
               <button 
                 onClick={() => setView('public')}
                 className="mt-8 text-gray-500 hover:text-white text-sm transition-colors font-mono"
               >
-                &larr; Return to Public Dispatch
+                ← Return to Public Dispatch
               </button>
             </div>
           </SignedOut>
@@ -175,45 +138,42 @@ function VanguardApp() {
 
 // --- PUBLIC SITE COMPONENT ---
 function PublicSite({ config, articles, onSecretLogin }) {
-  const { identity, theme, categories } = config || DEFAULT_CONFIG;
-  const safeArticles = articles || [];
-  const activeCategories = categories || [];
-
+  const { identity, theme, categories } = config;
   const [activeCategory, setActiveCategory] = useState(null);
 
-  const featuredArticle = safeArticles.find(a => a.featured) || safeArticles[0] || null;
-  const otherArticles = safeArticles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
-  const categoryArticles = safeArticles.filter(a => a.category === activeCategory);
+  const featuredArticle = articles.find(a => a.featured) || articles[0] || null;
+  const otherArticles = articles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
+  const categoryArticles = articles.filter(a => a.category === activeCategory);
 
   return (
-    <div className="min-h-screen pb-20 selection:bg-red-900 selection:text-white" style={{ backgroundColor: theme?.background || '#fff', color: theme?.text || '#000', fontFamily: theme?.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
-      <div className="w-full text-center py-1 text-xs tracking-widest uppercase font-bold text-white" style={{ backgroundColor: theme?.primary || '#900' }}>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: theme.background, color: theme.text, fontFamily: theme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
+      <div className="w-full text-center py-1 text-xs tracking-widest uppercase font-bold text-white" style={{ backgroundColor: theme.primary }}>
         Workers of the world, unite!
       </div>
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 w-full">
-        <header className="py-8 border-b-8 mb-8" style={{ borderColor: theme?.text }}>
-          <div className="flex justify-between items-end border-b-2 pb-2 mb-4" style={{ borderColor: theme?.text }}>
-            <span className="text-sm font-bold uppercase tracking-wider">{identity?.mastheadDate}</span>
+        <header className="py-8 border-b-8 mb-8" style={{ borderColor: theme.text }}>
+          <div className="flex justify-between items-end border-b-2 pb-2 mb-4" style={{ borderColor: theme.text }}>
+            <span className="text-sm font-bold uppercase tracking-wider">{identity.mastheadDate}</span>
             <span className="text-sm font-bold uppercase tracking-wider">Issue No. 48</span>
           </div>
           <h1 
             onClick={() => setActiveCategory(null)}
             className="text-6xl md:text-8xl lg:text-9xl font-black text-center uppercase tracking-tighter leading-none mb-4 cursor-pointer hover:opacity-90 transition-opacity" 
-            style={{ color: theme?.primary }}
+            style={{ color: theme.primary }}
           >
-            {identity?.siteName}
+            {identity.siteName}
           </h1>
-          <p className="text-center text-xl md:text-2xl italic font-semibold border-t-2 pt-4" style={{ borderColor: theme?.text }}>{identity?.tagline}</p>
+          <p className="text-center text-xl md:text-2xl italic font-semibold border-t-2 pt-4" style={{ borderColor: theme.text }}>{identity.tagline}</p>
         </header>
 
-        <nav className="border-y-4 py-3 mb-12 flex flex-wrap justify-center gap-6 md:gap-12" style={{ borderColor: theme?.text }}>
-          {activeCategories.map((cat, idx) => (
+        <nav className="border-y-4 py-3 mb-12 flex flex-wrap justify-center gap-6 md:gap-12" style={{ borderColor: theme.text }}>
+          {categories.map((cat, idx) => (
             <span 
               key={idx} 
               onClick={() => setActiveCategory(cat)}
               className={`uppercase font-bold tracking-widest text-sm hover:underline cursor-pointer transition-colors ${activeCategory === cat ? 'underline' : 'opacity-80 hover:opacity-100'}`}
-              style={{ color: activeCategory === cat ? theme?.primary : theme?.text }}
+              style={{ color: activeCategory === cat ? theme.primary : theme.text }}
             >
               {cat}
             </span>
@@ -224,18 +184,23 @@ function PublicSite({ config, articles, onSecretLogin }) {
           <main className="lg:col-span-8">
             {activeCategory ? (
               <div className="mb-16 animate-in fade-in duration-500">
-                <h2 className="text-4xl md:text-5xl font-black uppercase mb-8 border-b-4 pb-2" style={{ borderColor: theme?.text }}>
+                <h2 className="text-4xl md:text-5xl font-black uppercase mb-8 border-b-4 pb-2" style={{ borderColor: theme.text }}>
                   Dispatch: {activeCategory}
                 </h2>
                 <div className="space-y-12">
                   {categoryArticles.length > 0 ? (
                     categoryArticles.map(article => (
-                      <article key={article.id} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: theme?.text }}>
+                      <article key={article.id} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: theme.text }}>
                         {article.imageUrl && (
-                          <img src={article.imageUrl} alt={article.title} className="w-full h-64 object-cover mb-4 border-4 grayscale hover:grayscale-0 transition-all duration-500 shadow-lg" style={{ borderColor: theme?.text }} />
+                          <img 
+                            src={article.imageUrl} 
+                            alt={article.title}
+                            className="w-full h-64 object-cover mb-4 border-4"
+                            style={{ borderColor: theme.text, filter: 'grayscale(100%) contrast(120%)' }}
+                          />
                         )}
                         <h3 className="text-3xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                        <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70" style={{ color: theme?.primary }}>{article.date}</div>
+                        <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70">{article.date}</div>
                         <p className="leading-relaxed text-lg">{article.excerpt}</p>
                       </article>
                     ))
@@ -249,17 +214,23 @@ function PublicSite({ config, articles, onSecretLogin }) {
                 {featuredArticle && (
                   <article className="mb-16">
                     {featuredArticle.imageUrl ? (
-                      <img src={featuredArticle.imageUrl} alt={featuredArticle.title} className="w-full h-64 md:h-96 object-cover mb-6 border-4 grayscale hover:grayscale-0 transition-all duration-500 shadow-xl" style={{ borderColor: theme?.primary }} />
+                      <img 
+                        src={featuredArticle.imageUrl} 
+                        alt={featuredArticle.title}
+                        className="w-full h-64 md:h-96 object-cover mb-6 border-4"
+                        style={{ borderColor: theme.primary, filter: 'grayscale(100%) contrast(120%)' }}
+                      />
                     ) : (
-                      <div className="w-full h-64 md:h-96 mb-6 flex items-center justify-center border-4 shadow-xl" style={{ backgroundColor: `${theme?.primary}20`, borderColor: theme?.primary, mixBlendMode: 'multiply' }}>
-                        <div className="text-center" style={{ color: theme?.primary }}>
+                      <div className="w-full h-64 md:h-96 mb-6 flex items-center justify-center border-4" style={{ backgroundColor: `${theme.primary}20`, borderColor: theme.primary, mixBlendMode: 'multiply' }}>
+                        <div className="text-center" style={{ color: theme.primary }}>
                           <ImageIcon size={64} className="mx-auto mb-4 opacity-80" />
                           <p className="font-bold uppercase tracking-widest opacity-80">[ ARCHIVAL WOODCUT ]</p>
                         </div>
                       </div>
                     )}
+                    
                     <h2 className="text-4xl md:text-6xl font-black uppercase leading-none mb-4 tracking-tight">{featuredArticle.title}</h2>
-                    <div className="flex items-center gap-4 mb-6 text-sm font-bold uppercase tracking-wider" style={{ color: theme?.primary }}>
+                    <div className="flex items-center gap-4 mb-6 text-sm font-bold uppercase tracking-wider" style={{ color: theme.primary }}>
                       <span onClick={() => setActiveCategory(featuredArticle.category)} className="cursor-pointer hover:underline">{featuredArticle.category}</span>
                       <span>•</span>
                       <span>{featuredArticle.date}</span>
@@ -268,15 +239,20 @@ function PublicSite({ config, articles, onSecretLogin }) {
                   </article>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-4 pt-8" style={{ borderColor: theme?.text }}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-4 pt-8" style={{ borderColor: theme.text }}>
                   {otherArticles.map(article => (
                     <article key={article.id} className="group cursor-pointer">
                       {article.imageUrl && (
-                        <img src={article.imageUrl} alt={article.title} className="w-full h-40 object-cover mb-4 border-2 grayscale group-hover:grayscale-0 transition-all duration-500 shadow-md" style={{ borderColor: theme?.text }} />
+                        <img 
+                          src={article.imageUrl} 
+                          alt={article.title}
+                          className="w-full h-40 object-cover mb-4 border-2"
+                          style={{ borderColor: theme.text, filter: 'grayscale(100%) contrast(120%)' }}
+                        />
                       )}
                       <h3 className="text-2xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                      <div className="text-xs font-bold uppercase tracking-wider mb-3 opacity-70" style={{ color: theme?.primary }}>{article.category}</div>
-                      <p className="leading-snug line-clamp-3">{article.excerpt}</p>
+                      <div className="text-xs font-bold uppercase tracking-wider mb-3 opacity-70" style={{ color: theme.primary }}>{article.category}</div>
+                      <p className="leading-snug">{article.excerpt}</p>
                     </article>
                   ))}
                 </div>
@@ -285,19 +261,22 @@ function PublicSite({ config, articles, onSecretLogin }) {
           </main>
 
           <aside className="lg:col-span-4 space-y-12">
-            <div className="p-6 border-4 shadow-[8px_8px_0px_0px] transition-all hover:shadow-[12px_12px_0px_0px]" style={{ borderColor: theme?.text, shadowColor: theme?.primary, backgroundColor: theme?.background }}>
-              <h3 className="text-2xl font-black uppercase mb-4 border-b-2 pb-2" style={{ borderColor: theme?.text }}>
-                {identity?.aboutTitle || "The Program"}
+            <div className="p-6 border-4 shadow-[8px_8px_0px_0px]" style={{ borderColor: theme.text, shadowColor: theme.primary, backgroundColor: theme.background }}>
+              <h3 className="text-2xl font-black uppercase mb-4 border-b-2 pb-2" style={{ borderColor: theme.text }}>
+                {identity.aboutTitle || "The Program"}
               </h3>
-              <div className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{identity?.aboutText}</div>
+              <div className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{identity.aboutText}</div>
             </div>
           </aside>
         </div>
       </div>
 
-      {/* Secret Login Button mapped directly to Clerk View transition */}
-      <footer className="mt-20 py-8 border-t-4 text-center group" style={{ borderColor: theme?.text }}>
-        <button onClick={onSecretLogin} className="text-xs font-mono uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-500 cursor-pointer">
+      <footer className="mt-20 py-8 border-t-4 text-center group" style={{ borderColor: theme.text }}>
+        <button 
+          onClick={onSecretLogin}
+          className="text-xs font-mono uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-500 cursor-pointer"
+          style={{ color: theme.text }}
+        >
            [ TERMINAL ACCESS ] 
         </button>
       </footer>
@@ -307,37 +286,29 @@ function PublicSite({ config, articles, onSecretLogin }) {
 
 // --- ADMIN DASHBOARD COMPONENT ---
 function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPublic }) {
-  const { isLoaded, user } = useUser();
+  const { user } = useUser();
   const { signOut } = useClerk();
-  
   const [activeTab, setActiveTab] = useState('content');
   const [savedStatus, setSavedStatus] = useState(false);
+  
   const [previewStates, setPreviewStates] = useState({});
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('moderator');
 
-  // Prevent crashes if Clerk is still loading user data
-  if (!isLoaded) return (
-    <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center font-mono text-red-500">
-      <Terminal size={48} className="animate-pulse mb-4" />
-      <div className="tracking-widest">INITIALIZING VANGUARD_OS...</div>
-    </div>
-  );
-
-  // Deeply safe checks for emails to avoid white screen
-  const userEmail = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
-  const safeTeam = config?.team || [];
+  const userEmail = user?.primaryEmailAddress?.emailAddress || '';
   
-  const isAdmin = userEmail.includes('admin') || safeTeam.some(m => m?.email?.toLowerCase() === userEmail && m?.role === 'admin');
+  // Verify Admin Status: Check hardcoded fallback OR dynamic team list
+  const configTeam = config.team || [];
+  const teamMember = configTeam.find(m => m.email.toLowerCase() === userEmail.toLowerCase());
+  const isAdmin = userEmail.includes('admin') || (teamMember && teamMember.role === 'admin');
   const roleName = isAdmin ? 'Admin' : 'Moderator';
 
   const tabs = [
-    { id: 'content', label: 'Article Manager', icon: FileText, requireAdmin: false },
+    { id: 'content', label: 'Articles & Content', icon: FileText, requireAdmin: false },
     { id: 'analytics', label: 'Reader Analytics', icon: BarChart, requireAdmin: false },
     { id: 'identity', label: 'Identity Settings', icon: Settings, requireAdmin: true },
-    { id: 'team', label: 'Access Control', icon: Users, requireAdmin: true },
-    { id: 'theme', label: 'Theme Architecture', icon: Palette, requireAdmin: true },
-    { id: 'integrations', label: 'CLI Integrations', icon: Database, requireAdmin: true },
+    { id: 'theme', label: 'Theme & Branding', icon: Palette, requireAdmin: true },
+    { id: 'team', label: 'Team & Permissions', icon: Users, requireAdmin: true },
   ].filter(tab => !tab.requireAdmin || isAdmin);
 
   const handleSave = () => {
@@ -347,82 +318,53 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
     setTimeout(() => setSavedStatus(false), 3000);
   };
 
-  // Safe State Updates
+  const togglePreview = (id) => {
+    setPreviewStates(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const addArticle = () => {
     const newArticle = {
       id: Date.now(),
       title: "New Dispatch Draft",
-      category: (config?.categories || ['Draft'])[0],
-      excerpt: "Content goes here...",
+      category: config.categories[0],
+      excerpt: "Enter your article excerpt here...",
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       featured: false,
       imageUrl: ""
     };
-    setArticles(prev => [newArticle, ...(prev || [])]);
-  };
-
-  const updateArticle = (id, updates) => {
-    setArticles(prev => (prev || []).map(a => a.id === id ? { ...a, ...updates } : a));
-  };
-
-  const toggleFeatured = (id, isChecked) => {
-    setArticles(prev => (prev || []).map(a => {
-      if (a.id === id) return { ...a, featured: isChecked };
-      if (isChecked) return { ...a, featured: false }; 
-      return a;
-    }));
+    setArticles([newArticle, ...articles]);
   };
 
   const deleteArticle = (id) => {
-    if (window.confirm("Permanently delete this dispatch?")) {
-      setArticles(prev => (prev || []).filter(a => a.id !== id));
-    }
+    setArticles(articles.filter(a => a.id !== id));
   };
 
   const addTeamMember = () => {
     if (!newEmail) return;
-    setConfig(prev => ({
-      ...prev,
-      team: [...(prev?.team || []), { email: newEmail.toLowerCase(), role: newRole }]
-    }));
+    const updatedTeam = [...(config.team || []), { email: newEmail, role: newRole }];
+    setConfig({ ...config, team: updatedTeam });
     setNewEmail('');
   };
 
-  const removeTeamMember = (email) => {
-    if (window.confirm(`Revoke access for ${email}?`)) {
-      setConfig(prev => ({
-        ...prev,
-        team: (prev?.team || []).filter(m => m.email !== email)
-      }));
-    }
-  };
-
-  const updateIdentity = (key, value) => {
-    setConfig(prev => ({ ...prev, identity: { ...prev.identity, [key]: value } }));
-  };
-
-  const updateTheme = (key, value) => {
-    setConfig(prev => ({ ...prev, theme: { ...prev.theme, [key]: value } }));
-  };
-
-  const updateIntegration = (key, value) => {
-    setConfig(prev => ({ ...prev, integrations: { ...prev.integrations, [key]: value } }));
+  const removeTeamMember = (emailToRemove) => {
+    const updatedTeam = (config.team || []).filter(m => m.email !== emailToRemove);
+    setConfig({ ...config, team: updatedTeam });
   };
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-200 flex flex-col md:flex-row font-sans">
-      <aside className="w-full md:w-64 bg-gray-900 border-r border-gray-800 flex flex-col shadow-2xl relative z-10">
+      <aside className="w-full md:w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
         <div className="p-6 border-b border-gray-800 flex justify-between items-center">
-          <div className="overflow-hidden">
+          <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
-              <Terminal size={20} className="text-red-500 shrink-0" /> VANGUARD
+              <Terminal size={20} className="text-red-500" /> VANGUARD
             </h2>
-            <div className="mt-1 text-xs text-gray-400 font-mono truncate" title={userEmail}>
-              {userEmail} <br/> 
-              ROLE: <span className={isAdmin ? 'text-red-500 font-bold' : 'text-blue-400 font-bold'}>{roleName.toUpperCase()}</span>
+            <div className="mt-1 text-xs text-gray-400 font-mono break-all">
+              {userEmail} <br/>
+              ROLE: <span className={isAdmin ? 'text-red-400' : 'text-blue-400'}>{roleName.toUpperCase()}</span>
             </div>
           </div>
-          <div className="ml-2 bg-gray-800 rounded-full p-1 shrink-0 shadow-inner">
+          <div className="bg-gray-800 rounded-full p-1 border border-gray-700 ml-2">
             <UserButton afterSignOutUrl="/" />
           </div>
         </div>
@@ -438,88 +380,184 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-gray-800">
-          <button onClick={onReturnPublic} className="w-full text-center py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-sm transition-colors border border-gray-700 font-bold uppercase tracking-widest">Return Home</button>
+
+        <div className="p-4 border-t border-gray-800 space-y-2">
+          <button onClick={onReturnPublic} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-sm transition-colors">
+            Return to Public Site
+          </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden bg-gray-950">
-        <header className="h-16 bg-gray-900/80 backdrop-blur border-b border-gray-800 flex items-center justify-between px-8 shrink-0">
+      <main className="flex-1 flex flex-col h-screen overflow-hidden">
+        <header className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-2 text-sm text-gray-400 font-mono">
-            <span>root</span> <ChevronRight size={14} /> <span className="text-white capitalize">{activeTab}</span>
+            <span>root</span> <ChevronRight size={14} /> <span className="text-white">{activeTab}</span>
           </div>
           <button 
-            onClick={handleSave} 
-            className={`flex items-center gap-2 px-6 py-2 text-white text-sm font-bold rounded transition-all shadow-lg active:scale-95 ${savedStatus ? 'bg-green-600' : 'bg-red-700 hover:bg-red-600'}`}
+            onClick={handleSave}
+            className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600 text-white text-sm font-medium rounded transition-colors shadow-lg"
           >
             {savedStatus ? <CheckCircle size={16} /> : <Database size={16} />}
-            {savedStatus ? 'Deployment Success' : 'Deploy Changes'}
+            {savedStatus ? 'Saved Successfully' : 'Deploy Changes'}
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-4xl mx-auto space-y-8 pb-32">
+        <div className="flex-1 overflow-y-auto p-8 bg-gray-950">
+          <div className="max-w-4xl mx-auto space-y-8">
             
+            {/* CONTENT TAB */}
             {activeTab === 'content' && (
-              <section className="space-y-6 animate-in fade-in duration-500">
-                <div className="flex justify-between items-center border-b border-gray-800 pb-4">
+              <section className="space-y-6">
+                <div className="flex justify-between items-end border-b border-gray-800 pb-4">
                   <div>
-                    <h3 className="text-2xl font-bold text-white">Article Manager</h3>
+                    <h3 className="text-2xl font-bold text-white">Article Management</h3>
+                    <p className="text-sm text-gray-400 mt-1">Create and manage your front page dispatches.</p>
                   </div>
-                  <button onClick={addArticle} className="flex items-center gap-2 bg-red-700/20 border border-red-500/50 hover:bg-red-700/40 text-red-100 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-lg">
-                    <Plus size={16} /> New Dispatch
+                  <button 
+                    onClick={addArticle}
+                    className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white px-4 py-2 rounded transition-colors text-sm font-medium"
+                  >
+                    <Plus size={16} className="text-red-500" /> New Article
                   </button>
                 </div>
+                
                 <div className="space-y-6">
-                  {(articles || []).map((article) => {
+                  {articles.length === 0 && (
+                    <div className="text-center py-12 bg-gray-900 border border-gray-800 rounded-lg border-dashed">
+                      <FileText size={48} className="mx-auto text-gray-700 mb-4" />
+                      <p className="text-gray-400">No articles found. Click "New Article" to begin.</p>
+                    </div>
+                  )}
+
+                  {articles.map((article, index) => {
                     const isPreviewing = previewStates[article.id];
+                    
                     return (
-                      <div key={article.id} className={`bg-gray-900 border ${article.featured ? 'border-red-500/50 shadow-[0_0_20px_rgba(220,38,38,0.1)]' : 'border-gray-800'} rounded-xl overflow-hidden transition-all duration-300`}>
+                      <div key={article.id} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden shadow-xl relative">
+                        {/* Article Header & Tools */}
                         <div className="bg-gray-800/50 border-b border-gray-800 p-4 flex justify-between items-center">
                           <div className="flex gap-4 items-center">
-                            <span className="text-xs font-mono text-gray-500 bg-black/40 px-2 py-0.5 rounded">#{article.id.toString().slice(-6)}</span>
-                            <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer font-bold uppercase tracking-wider hover:text-white">
-                              <input type="checkbox" checked={article.featured} onChange={(e) => toggleFeatured(article.id, e.target.checked)} className="accent-red-600 w-4 h-4" /> 
-                              Featured Headline
+                            <span className="text-xs font-mono text-gray-500">ID: {article.id.toString().slice(-6)}</span>
+                            {article.featured && <span className="text-xs font-bold text-red-500 uppercase flex items-center gap-1"><CheckCircle size={12}/> Featured</span>}
+                            
+                            <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer ml-2">
+                              <input 
+                                type="checkbox" 
+                                checked={article.featured}
+                                onChange={(e) => {
+                                  const newArticles = [...articles];
+                                  if(e.target.checked) newArticles.forEach(a => a.featured = false);
+                                  newArticles[index].featured = e.target.checked;
+                                  setArticles(newArticles);
+                                }}
+                                className="accent-red-600 w-3 h-3"
+                              /> Make Featured
                             </label>
                           </div>
+                          
                           <div className="flex gap-4 items-center">
-                            <button onClick={() => setPreviewStates(p => ({ ...p, [article.id]: !p[article.id] }))} className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-blue-400 hover:text-blue-300 bg-blue-400/10 px-3 py-1 rounded-md">
-                              {isPreviewing ? <><Edit3 size={14}/> Edit</> : <><Eye size={14}/> Preview</>}
+                            <button 
+                              onClick={() => togglePreview(article.id)}
+                              className="flex items-center gap-2 text-sm font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                            >
+                              {isPreviewing ? <><Edit3 size={16}/> Edit Mode</> : <><Eye size={16}/> View Preview</>}
                             </button>
-                            <button onClick={() => deleteArticle(article.id)} className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded hover:bg-red-500/10"><Trash2 size={18} /></button>
+                            <div className="w-px h-4 bg-gray-700"></div>
+                            <button 
+                              onClick={() => deleteArticle(article.id)}
+                              className="text-gray-500 hover:text-red-500 transition-colors"
+                              title="Delete Article"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </div>
-                        <div className="p-6">
+
+                        <div className="p-5">
                           {isPreviewing ? (
-                            <div className="bg-white p-6 md:p-8 rounded-lg shadow-inner" style={{ backgroundColor: config?.theme?.background || '#fff', color: config?.theme?.text || '#000', fontFamily: config?.theme?.fontFamily === 'serif' ? 'Georgia, serif' : 'sans-serif' }}>
-                               {article.imageUrl && <img src={article.imageUrl} className="w-full h-56 object-cover mb-6 border-2 border-black/10 rounded" alt="Preview" />}
-                               <h3 className="text-3xl md:text-4xl font-black uppercase mb-3 leading-tight tracking-tighter">{article.title || 'Untitled Dispatch'}</h3>
-                               <div className="text-xs font-bold uppercase tracking-widest mb-6 opacity-60 border-t pt-2 inline-block">{article.category} • {article.date}</div>
-                               <p className="whitespace-pre-wrap leading-relaxed text-lg">{article.excerpt || 'No content drafted for this issue.'}</p>
+                            // PREVIEW MODE
+                            <div className="bg-white p-6 rounded border border-gray-700 shadow-inner" style={{ 
+                                backgroundColor: config.theme.background, 
+                                color: config.theme.text,
+                                fontFamily: config.theme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif'
+                              }}>
+                              {article.imageUrl && (
+                                <img 
+                                  src={article.imageUrl} 
+                                  alt={article.title} 
+                                  className="w-full h-48 object-cover mb-4 border-2" 
+                                  style={{ borderColor: config.theme.primary, filter: 'grayscale(100%) contrast(120%)' }} 
+                                />
+                              )}
+                              <h3 className="text-3xl font-black uppercase leading-tight mb-2">{article.title || 'Untitled'}</h3>
+                              <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70" style={{ color: config.theme.primary }}>
+                                {article.category} • {article.date}
+                              </div>
+                              <p className="leading-relaxed text-lg whitespace-pre-wrap">{article.excerpt || 'No content provided.'}</p>
                             </div>
                           ) : (
-                            <div className="space-y-5">
-                              <div>
-                                <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Dispatch Headline</label>
-                                <input type="text" value={article.title} onChange={(e) => updateArticle(article.id, { title: e.target.value })} className="bg-gray-950 border border-gray-800 text-white w-full p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-500/50 font-bold text-lg" />
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                <div>
-                                  <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Classification</label>
-                                  <select value={article.category} onChange={(e) => updateArticle(article.id, { category: e.target.value })} className="bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm text-gray-200 focus:outline-none w-full">
-                                    {(config?.categories || []).map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                  </select>
+                            // EDIT MODE
+                            <div className="space-y-4">
+                              <input 
+                                type="text" value={article.title}
+                                placeholder="Article Title..."
+                                onChange={(e) => {
+                                  const newArticles = [...articles];
+                                  newArticles[index].title = e.target.value;
+                                  setArticles(newArticles);
+                                }}
+                                className="bg-gray-950 border border-gray-800 text-lg font-bold text-white w-full p-3 rounded focus:outline-none focus:border-red-500"
+                              />
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <select
+                                  value={article.category}
+                                  onChange={(e) => {
+                                    const newArticles = [...articles];
+                                    newArticles[index].category = e.target.value;
+                                    setArticles(newArticles);
+                                  }}
+                                  className="bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-300 focus:outline-none focus:border-red-500"
+                                >
+                                  {config.categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                </select>
+
+                                <input 
+                                  type="text" value={article.date}
+                                  placeholder="Date (e.g. Oct 24, 2026)"
+                                  onChange={(e) => {
+                                    const newArticles = [...articles];
+                                    newArticles[index].date = e.target.value;
+                                    setArticles(newArticles);
+                                  }}
+                                  className="bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-300 focus:outline-none focus:border-red-500"
+                                />
+                                
+                                <div className="flex items-center gap-2 bg-gray-950 border border-gray-800 rounded p-2 focus-within:border-red-500 transition-colors">
+                                  <LinkIcon size={14} className="text-gray-500 ml-1 shrink-0" />
+                                  <input 
+                                    type="url" value={article.imageUrl || ''}
+                                    placeholder="Image URL..."
+                                    onChange={(e) => {
+                                      const newArticles = [...articles];
+                                      newArticles[index].imageUrl = e.target.value;
+                                      setArticles(newArticles);
+                                    }}
+                                    className="bg-transparent text-sm text-gray-300 w-full focus:outline-none"
+                                  />
                                 </div>
-                                <div>
-                                  <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Featured Asset URL</label>
-                                  <input type="url" value={article.imageUrl || ''} placeholder="https://..." onChange={(e) => updateArticle(article.id, { imageUrl: e.target.value })} className="bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm text-gray-300 focus:outline-none w-full font-mono" />
-                                </div>
                               </div>
-                              <div>
-                                <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Main Body Content</label>
-                                <textarea value={article.excerpt} onChange={(e) => updateArticle(article.id, { excerpt: e.target.value })} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-4 text-sm text-gray-300 h-48 focus:outline-none focus:ring-1 focus:ring-red-500/50 leading-relaxed" />
-                              </div>
+
+                              <textarea 
+                                value={article.excerpt}
+                                placeholder="Article excerpt or content..."
+                                onChange={(e) => {
+                                  const newArticles = [...articles];
+                                  newArticles[index].excerpt = e.target.value;
+                                  setArticles(newArticles);
+                                }}
+                                className="w-full bg-gray-950 border border-gray-800 rounded p-3 text-sm text-gray-300 focus:outline-none focus:border-red-500 min-h-[120px]"
+                              />
                             </div>
                           )}
                         </div>
@@ -530,129 +568,179 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
               </section>
             )}
 
+            {/* ANALYTICS TAB */}
             {activeTab === 'analytics' && (
-              <section className="space-y-6 animate-in fade-in duration-500">
-                <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Reach & Impact</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-gray-900 border border-gray-800 p-8 rounded-xl shadow-lg">
-                    <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Reads</div>
-                    <div className="text-5xl font-black text-white">42.8k</div>
+              <section className="space-y-6">
+                <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Reader Analytics</h3>
+                <p className="text-gray-400 text-sm">Real-time metrics for your publications. (Simulated data for this environment)</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+                    <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">Unique Readers</div>
+                    <div className="text-4xl font-black text-white">14,204</div>
+                    <div className="text-green-500 text-sm mt-2">↑ 12% from last week</div>
                   </div>
-                  <div className="bg-gray-900 border border-gray-800 p-8 rounded-xl shadow-lg">
-                    <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Retention Avg</div>
-                    <div className="text-5xl font-black text-white">6m 14s</div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+                    <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">Avg Read Time</div>
+                    <div className="text-4xl font-black text-white">4m 12s</div>
+                    <div className="text-red-500 text-sm mt-2">↓ 2% from last week</div>
                   </div>
-                  <div className="bg-gray-900 border border-gray-800 p-8 rounded-xl shadow-lg border-l-4 border-l-red-600">
-                    <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Top Influence</div>
-                    <div className="text-4xl font-black text-white uppercase">Theory</div>
+                  <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 border-l-4 border-l-red-600">
+                    <div className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-2">Top Category</div>
+                    <div className="text-2xl font-black text-white mt-3">Current Struggle</div>
                   </div>
                 </div>
-              </section>
-            )}
 
-            {activeTab === 'team' && isAdmin && (
-              <section className="space-y-6 animate-in fade-in duration-500">
-                <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Access Control</h3>
-                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-xl">
-                  <h4 className="text-white font-bold mb-4 uppercase text-xs tracking-widest text-gray-400">Authorized Personnel</h4>
-                  <div className="space-y-3 mb-8">
-                    {(config?.team || []).map((member, idx) => (
-                      <div key={idx} className="flex justify-between items-center bg-gray-950 p-4 rounded-lg border border-gray-800">
-                        <span className="text-gray-200 font-mono text-sm">{member.email}</span>
-                        <div className="flex items-center gap-6">
-                          <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${member.role === 'admin' ? 'bg-red-900/20 text-red-400 border-red-500/50' : 'bg-blue-900/20 text-blue-400 border-blue-500/50'}`}>
-                            {member.role}
-                          </span>
-                          <button onClick={() => removeTeamMember(member.email)} className="text-gray-600 hover:text-red-500"><Trash2 size={18} /></button>
-                        </div>
+                <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
+                  <h4 className="text-white font-bold mb-4 uppercase text-sm border-b border-gray-800 pb-2">Top Performing Articles</h4>
+                  <div className="space-y-4">
+                    {articles.slice(0, 3).map((a, i) => (
+                      <div key={i} className="flex justify-between items-center text-sm">
+                        <span className="text-gray-300 truncate pr-4">{a.title || 'Untitled'}</span>
+                        <span className="text-gray-500 font-mono shrink-0">{Math.floor(Math.random() * 5000 + 1000)} views</span>
                       </div>
                     ))}
                   </div>
-                  <div className="pt-8 border-t border-gray-800">
-                    <h4 className="text-white font-bold mb-4 uppercase text-[10px] tracking-widest text-gray-400">Grant New Clearances</h4>
-                    <div className="flex flex-col md:flex-row gap-4">
-                      <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="comrade@example.com" className="flex-1 bg-gray-950 border border-gray-800 rounded-lg p-3.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-red-500/50" />
-                      <select value={newRole} onChange={(e) => setNewRole(e.target.value)} className="bg-gray-950 border border-gray-800 rounded-lg p-3.5 text-sm text-gray-300 focus:outline-none md:w-48">
-                        <option value="moderator">Moderator</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                      <button onClick={addTeamMember} className="bg-red-700 hover:bg-red-600 text-white px-8 py-3.5 rounded-lg text-sm font-black shadow-lg">Grant</button>
-                    </div>
+                </div>
+              </section>
+            )}
+
+            {/* TEAM & PERMISSIONS TAB */}
+            {activeTab === 'team' && isAdmin && (
+              <section className="space-y-6">
+                <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Team & Permissions</h3>
+                <p className="text-gray-400 text-sm mb-6">
+                  Manage which Clerk accounts have Moderator or Admin access. <br/>
+                  *Note: Users must still sign up/log in via Clerk using these exact email addresses.
+                </p>
+                
+                <div className="bg-gray-900 border border-gray-800 rounded-lg p-5">
+                  <h4 className="text-white font-bold mb-4 uppercase text-sm">Authorized Users</h4>
+                  
+                  <div className="space-y-3 mb-6">
+                    {(config.team || []).map((member, idx) => (
+                      <div key={idx} className="flex justify-between items-center bg-gray-950 p-3 rounded border border-gray-800">
+                        <span className="text-gray-300 font-mono text-sm">{member.email}</span>
+                        <div className="flex items-center gap-4">
+                          <span className={`text-xs font-bold uppercase tracking-wider ${member.role === 'admin' ? 'text-red-500' : 'text-blue-500'}`}>
+                            {member.role}
+                          </span>
+                          <button 
+                            onClick={() => removeTeamMember(member.email)}
+                            className="text-gray-600 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {(!config.team || config.team.length === 0) && (
+                      <div className="text-gray-500 text-sm italic">No users explicitly defined in config.</div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-800 pt-4 flex gap-3">
+                    <input 
+                      type="email" 
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      placeholder="writer@email.com"
+                      className="flex-1 bg-gray-950 border border-gray-800 rounded p-2 text-sm text-white focus:outline-none focus:border-red-500"
+                    />
+                    <select 
+                      value={newRole}
+                      onChange={(e) => setNewRole(e.target.value)}
+                      className="bg-gray-950 border border-gray-800 rounded p-2 text-sm text-gray-300 focus:outline-none focus:border-red-500"
+                    >
+                      <option value="moderator">Moderator</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <button 
+                      onClick={addTeamMember}
+                      className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors"
+                    >
+                      Add
+                    </button>
                   </div>
                 </div>
               </section>
             )}
 
+            {/* IDENTITY TAB */}
             {activeTab === 'identity' && isAdmin && (
-               <section className="space-y-6 animate-in fade-in duration-500">
-                 <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Global Identity</h3>
-                 <div className="space-y-6 bg-gray-900 border border-gray-800 p-8 rounded-xl shadow-xl">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Masthead Title</label>
-                        <input type="text" value={config?.identity?.siteName || ''} onChange={(e) => updateIdentity('siteName', e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-4 text-white font-bold text-xl focus:outline-none focus:ring-1 focus:ring-red-500/50" />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Tagline</label>
-                        <input type="text" value={config?.identity?.tagline || ''} onChange={(e) => updateIdentity('tagline', e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-4 text-white font-bold text-xl focus:outline-none focus:ring-1 focus:ring-red-500/50" />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">Manifesto Title (Sidebar)</label>
-                      <input type="text" value={config?.identity?.aboutTitle || 'The Program'} onChange={(e) => updateIdentity('aboutTitle', e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-4 text-white font-bold text-lg focus:outline-none focus:ring-1 focus:ring-red-500/50" />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-black uppercase text-gray-500 mb-2 tracking-widest">The Program (Manifesto Text)</label>
-                      <textarea value={config?.identity?.aboutText || ''} onChange={(e) => updateIdentity('aboutText', e.target.value)} className="w-full h-48 bg-gray-950 border border-gray-800 rounded-lg p-5 text-white leading-relaxed focus:outline-none focus:ring-1 focus:ring-red-500/50" />
-                    </div>
-                 </div>
-               </section>
+              <section className="space-y-6">
+                <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Global Identity</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-mono text-gray-500 uppercase">Site Name</label>
+                    <input 
+                      type="text" value={config.identity.siteName}
+                      onChange={(e) => setConfig(prev => ({...prev, identity: {...prev.identity, siteName: e.target.value}}))}
+                      className="w-full bg-gray-900 border border-gray-800 rounded p-3 text-white focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-xs font-mono text-gray-500 uppercase">Tagline</label>
+                    <input 
+                      type="text" value={config.identity.tagline}
+                      onChange={(e) => setConfig(prev => ({...prev, identity: {...prev.identity, tagline: e.target.value}}))}
+                      className="w-full bg-gray-900 border border-gray-800 rounded p-3 text-white focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2 md:col-span-2 mt-4 pt-4 border-t border-gray-800">
+                    <label className="block text-xs font-mono text-gray-500 uppercase">Sidebar Block Title</label>
+                    <input 
+                      type="text" value={config.identity.aboutTitle || 'The Program'}
+                      onChange={(e) => setConfig(prev => ({...prev, identity: {...prev.identity, aboutTitle: e.target.value}}))}
+                      className="w-full bg-gray-900 border border-gray-800 rounded p-3 text-white focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="block text-xs font-mono text-gray-500 uppercase">Sidebar Block Text (The Program)</label>
+                    <textarea 
+                      value={config.identity.aboutText}
+                      onChange={(e) => setConfig(prev => ({...prev, identity: {...prev.identity, aboutText: e.target.value}}))}
+                      className="w-full h-32 bg-gray-900 border border-gray-800 rounded p-3 text-white focus:outline-none focus:border-red-500"
+                    />
+                  </div>
+                </div>
+              </section>
             )}
 
+            {/* THEME TAB */}
             {activeTab === 'theme' && isAdmin && (
-               <section className="space-y-6 animate-in fade-in duration-500">
-                 <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Theme Architecture</h3>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-900 border border-gray-800 p-8 rounded-xl shadow-xl">
-                   {['primary', 'background', 'text', 'accent'].map(colorKey => (
-                     <div key={colorKey} className="space-y-2">
-                       <label className="block text-[10px] font-black uppercase text-gray-500 tracking-widest">{colorKey} Identity</label>
-                       <div className="flex gap-3">
-                         <input type="color" value={config?.theme?.[colorKey] || '#000000'} onChange={(e) => updateTheme(colorKey, e.target.value)} className="h-12 w-14 bg-gray-950 border border-gray-800 rounded-lg cursor-pointer p-1" />
-                         <input type="text" value={config?.theme?.[colorKey] || '#000000'} onChange={(e) => updateTheme(colorKey, e.target.value)} className="flex-1 bg-gray-950 border border-gray-800 rounded-lg p-3 text-white font-mono text-sm uppercase focus:outline-none focus:ring-1 focus:ring-red-500/50" />
-                       </div>
-                     </div>
-                   ))}
-                   <div className="space-y-2 md:col-span-2">
-                     <label className="block text-[10px] font-black uppercase text-gray-500 tracking-widest">Typography Stack</label>
-                     <select value={config?.theme?.fontFamily || 'serif'} onChange={(e) => updateTheme('fontFamily', e.target.value)} className="w-full h-12 bg-gray-950 border border-gray-800 rounded-lg px-4 text-white focus:outline-none focus:ring-1 focus:ring-red-500/50 cursor-pointer">
-                        <option value="serif">Broadsheet (Classic Serif)</option>
-                        <option value="sans">Modernist (Clean Sans)</option>
-                     </select>
-                   </div>
-                 </div>
-               </section>
-            )}
-
-            {activeTab === 'integrations' && isAdmin && (
-              <section className="space-y-6 animate-in fade-in duration-500">
-                <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Systems & Integration</h3>
-                <div className="space-y-6 bg-gray-900 border border-gray-800 p-8 rounded-xl shadow-xl">
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase text-gray-500 tracking-widest">Database Endpoint</label>
-                    <input type="password" value={config?.integrations?.dbEndpoint || ''} onChange={(e) => updateIntegration('dbEndpoint', e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-red-500 font-mono text-sm" />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-black uppercase text-gray-500 tracking-widest">API Webhook</label>
-                    <input type="text" value={config?.integrations?.apiWebhook || ''} onChange={(e) => updateIntegration('apiWebhook', e.target.value)} className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-white focus:outline-none focus:border-red-500 font-mono text-sm" />
-                  </div>
-                  <div className="mt-8">
-                    <label className="block text-[10px] font-black uppercase text-gray-500 tracking-widest mb-2">CLI Publishing Output</label>
-                    <div className="bg-black border border-gray-800 rounded-lg p-4 font-mono text-xs overflow-x-auto text-gray-400 space-y-1">
-                      <div><span className="text-green-500">$</span> rc-cli login --token="********"</div>
-                      <div>&gt; Authenticated as Admin</div>
-                      <div className="mt-2"><span className="text-green-500">$</span> rc-cli publish</div>
-                      <div>&gt; Deploying dispatches to main node... <span className="text-blue-400">OK</span></div>
+              <section className="space-y-6">
+                <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Theme Architecture</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {['primary', 'accent', 'background', 'text'].map(colorKey => (
+                    <div key={colorKey} className="space-y-2">
+                      <label className="block text-xs font-mono text-gray-500 uppercase">{colorKey} Color</label>
+                      <div className="flex gap-3">
+                        <input 
+                          type="color" value={config.theme[colorKey]}
+                          onChange={(e) => setConfig(prev => ({...prev, theme: {...prev.theme, [colorKey]: e.target.value}}))}
+                          className="h-12 w-16 bg-gray-900 border border-gray-800 rounded cursor-pointer p-1"
+                        />
+                        <input 
+                          type="text" value={config.theme[colorKey]}
+                          onChange={(e) => setConfig(prev => ({...prev, theme: {...prev.theme, [colorKey]: e.target.value}}))}
+                          className="flex-1 bg-gray-900 border border-gray-800 rounded p-3 text-white font-mono text-sm uppercase focus:outline-none focus:border-red-500"
+                        />
+                      </div>
                     </div>
+                  ))}
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="block text-xs font-mono text-gray-500 uppercase">Typography</label>
+                    <select 
+                      value={config.theme.fontFamily}
+                      onChange={(e) => setConfig(prev => ({...prev, theme: {...prev.theme, fontFamily: e.target.value}}))}
+                      className="w-full bg-gray-900 border border-gray-800 rounded p-3 text-white focus:outline-none focus:border-red-500"
+                    >
+                      <option value="serif">Broadsheet (Serif)</option>
+                      <option value="sans">Modernist (Sans-Serif)</option>
+                    </select>
                   </div>
                 </div>
               </section>
