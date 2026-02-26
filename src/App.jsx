@@ -414,7 +414,15 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
 
   // DEPLOY TO CLOUD FIREBASE
   const handleSave = async () => {
-    if (!db || !fbUser) return;
+    if (!db) {
+      alert("Error: Database connection is missing.");
+      return;
+    }
+    if (!fbUser) {
+      alert("Error: Firebase User is missing. Did you enable Anonymous Authentication in the Firebase Console?");
+      return;
+    }
+    
     try {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
       const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
