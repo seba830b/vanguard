@@ -4,7 +4,7 @@ import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useAuth, useClerk,
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore'; // Added getDoc and updateDoc
 
 import { 
   Settings, Terminal, Database, Palette, 
@@ -35,11 +35,13 @@ const INITIAL_ARTICLES = [
   { 
     id: 1, 
     title: "Database Initialized", 
+    author: "The Vanguard", // <-- NEW AUTHOR FIELD
     category: "The Archives", 
     excerpt: "The Vanguard cloud databank is active. Dispatches will now sync globally.", 
     content: "The Vanguard cloud databank is active. Dispatches will now sync globally.\n\nThis is the full text of the article where you can expand upon the theories, current struggles, and international news. Workers of the world, unite!",
     date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     featured: true,
+    views: 1, // <-- NEW VIEWS TRACKER
     imageUrl: "https://images.unsplash.com/photo-1506869640319-ce1a4484c2eb?auto=format&fit=crop&q=80&w=1000"
   }
 ];
@@ -69,15 +71,6 @@ export default function AppWrapper() {
          <div className="bg-red-900/20 border border-red-500 text-red-100 p-6 rounded-lg max-w-lg text-center font-mono shadow-2xl">
             <h2 className="text-xl font-bold mb-2 uppercase">Missing API Keys</h2>
             <p className="text-sm mb-4">Clerk or Firebase keys are missing from your environment.</p>
-            <div className="text-xs text-left bg-black/40 p-4 rounded space-y-2">
-              <p>Check your <code>.env.local</code> and Cloudflare settings for:</p>
-              <ul className="list-disc pl-4 text-gray-300">
-                <li>VITE_CLERK_PUBLISHABLE_KEY</li>
-                <li>VITE_FIREBASE_API_KEY</li>
-                <li>VITE_FIREBASE_AUTH_DOMAIN</li>
-                <li>(and the rest of the Firebase config)</li>
-              </ul>
-            </div>
          </div>
       </div>
     );
@@ -182,6 +175,7 @@ function VanguardApp() {
 
       {view === 'public' && isDbReady && (
         <PublicSite 
+          db={db} // Passed DB to public site for tracking views
           config={config} 
           articles={articles} 
           onSecretLogin={() => setView('admin')} 
@@ -225,18 +219,14 @@ function VanguardApp() {
 }
 
 // --- PUBLIC SITE COMPONENT ---
-function PublicSite({ config, articles, onSecretLogin }) {
+function PublicSite({ db, config, articles, onSecretLogin }) {
   const { identity, theme, categories } = config;
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedArticle, setSelectedArticle] = useState(null);
+  const [viewedInSession, setViewedInSession] = useState([]); // Prevents spam-clicking from racking up views
   
-  // Dark Mode State
   const [isDarkMode, setIsDarkMode] = useState(false);
-
-  // Computed Theme (Swaps colors if dark mode is active)
-  const activeTheme = isDarkMode 
-    ? { ...theme, background: '#121212', text: '#e5e5e5' } 
-    : theme;
+  const activeTheme = isDarkMode ? { ...theme, background: '#121212', text: '#e5e5e5' } : theme;
 
   const todayDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const sortedArticles = [...(articles || [])].sort((a, b) => b.id - a.id);
@@ -245,16 +235,37 @@ function PublicSite({ config, articles, onSecretLogin }) {
   const otherArticles = sortedArticles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
   const categoryArticles = sortedArticles.filter(a => a.category === activeCategory);
 
-  // Floating Dark Mode Toggle Button
+  // NEW: Article Read Tracking
+  const openArticle = async (article) => {
+    setSelectedArticle(article);
+    window.scrollTo(0,0);
+    
+    // Only count the view if they haven't read it this session, and DB is connected
+    if (db && !viewedInSession.includes(article.id)) {
+      setViewedInSession(prev => [...prev, article.id]);
+      try {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
+        const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles', 'main');
+        
+        const snap = await getDoc(articlesRef);
+        if (snap.exists()) {
+          const currentArticles = snap.data().items || [];
+          const updated = currentArticles.map(a => 
+            a.id === article.id ? { ...a, views: (a.views || 0) + 1 } : a
+          );
+          await updateDoc(articlesRef, { items: updated });
+        }
+      } catch (e) {
+        console.error("Could not track view:", e);
+      }
+    }
+  };
+
   const DarkModeToggle = () => (
     <button 
       onClick={() => setIsDarkMode(!isDarkMode)}
       className="fixed top-6 right-6 z-50 p-2.5 rounded-full border-2 shadow-lg transition-transform hover:scale-110 active:scale-95"
-      style={{ 
-        borderColor: activeTheme.text, 
-        color: activeTheme.text, 
-        backgroundColor: activeTheme.background 
-      }}
+      style={{ borderColor: activeTheme.text, color: activeTheme.text, backgroundColor: activeTheme.background }}
       title="Toggle Dark Mode"
     >
       {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -288,7 +299,9 @@ function PublicSite({ config, articles, onSecretLogin }) {
                 style={{ borderColor: activeTheme.text }}
               />
             )}
-            <div className="flex items-center gap-4 mb-4 text-sm font-bold uppercase tracking-wider" style={{ color: activeTheme.primary }}>
+            <div className="flex flex-wrap items-center gap-4 mb-4 text-sm font-bold uppercase tracking-wider" style={{ color: activeTheme.primary }}>
+              <span>By {selectedArticle.author || 'Anonymous'}</span>
+              <span>•</span>
               <span>{selectedArticle.category}</span>
               <span>•</span>
               <span>{selectedArticle.date}</span>
@@ -353,7 +366,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
                 <div className="space-y-12">
                   {categoryArticles.length > 0 ? (
                     categoryArticles.map(article => (
-                      <article key={article.id} onClick={() => setSelectedArticle(article)} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: activeTheme.text }}>
+                      <article key={article.id} onClick={() => openArticle(article)} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: activeTheme.text }}>
                         {article.imageUrl && (
                           <img 
                             src={article.imageUrl} 
@@ -363,7 +376,9 @@ function PublicSite({ config, articles, onSecretLogin }) {
                           />
                         )}
                         <h3 className="text-3xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                        <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70">{article.date}</div>
+                        <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70">
+                          {article.date} • {article.author || 'Anonymous'}
+                        </div>
                         <p className="leading-relaxed text-lg whitespace-pre-wrap">{article.excerpt}</p>
                       </article>
                     ))
@@ -375,7 +390,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
             ) : (
               <>
                 {featuredArticle && (
-                  <article onClick={() => setSelectedArticle(featuredArticle)} className="mb-16 animate-in fade-in duration-500 cursor-pointer group">
+                  <article onClick={() => openArticle(featuredArticle)} className="mb-16 animate-in fade-in duration-500 cursor-pointer group">
                     {featuredArticle.imageUrl ? (
                       <img 
                         src={featuredArticle.imageUrl} 
@@ -396,7 +411,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
                     <div className="flex items-center gap-4 mb-6 text-sm font-bold uppercase tracking-wider" style={{ color: activeTheme.primary }}>
                       <span onClick={(e) => { e.stopPropagation(); setActiveCategory(featuredArticle.category); }} className="cursor-pointer hover:underline">{featuredArticle.category}</span>
                       <span>•</span>
-                      <span>{featuredArticle.date}</span>
+                      <span>{featuredArticle.author || 'Anonymous'}</span>
                     </div>
                     <p className="text-xl leading-relaxed font-medium whitespace-pre-wrap">{featuredArticle.excerpt}</p>
                   </article>
@@ -404,7 +419,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-4 pt-8" style={{ borderColor: activeTheme.text }}>
                   {otherArticles.map(article => (
-                    <article key={article.id} onClick={() => setSelectedArticle(article)} className="group cursor-pointer">
+                    <article key={article.id} onClick={() => openArticle(article)} className="group cursor-pointer">
                       {article.imageUrl && (
                         <img 
                           src={article.imageUrl} 
@@ -414,7 +429,9 @@ function PublicSite({ config, articles, onSecretLogin }) {
                         />
                       )}
                       <h3 className="text-2xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                      <div className="text-xs font-bold uppercase tracking-wider mb-3 opacity-70" style={{ color: activeTheme.primary }}>{article.category}</div>
+                      <div className="text-xs font-bold uppercase tracking-wider mb-3 opacity-70" style={{ color: activeTheme.primary }}>
+                        {article.category} • {article.author || 'Anonymous'}
+                      </div>
                       <p className="leading-snug line-clamp-3">{article.excerpt}</p>
                     </article>
                   ))}
@@ -475,14 +492,8 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
   ].filter(tab => !tab.requireAdmin || isAdmin);
 
   const handleSave = async () => {
-    if (!db) {
-      alert("Error: Database connection is missing.");
-      return;
-    }
-    if (!fbUser) {
-      alert("Error: Firebase User is missing. Did you enable Anonymous Authentication in the Firebase Console?");
-      return;
-    }
+    if (!db) return alert("Error: Database connection is missing.");
+    if (!fbUser) return alert("Error: Firebase User is missing.");
 
     try {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
@@ -505,14 +516,17 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
   };
 
   const addArticle = () => {
+    const defaultAuthor = userEmail.split('@')[0]; // Guesses a name based on email
     const newArticle = {
       id: Date.now(),
       title: "New Dispatch Draft",
+      author: defaultAuthor,
       category: config.categories[0],
       excerpt: "Enter your short front-page TLDR here...",
       content: "Enter the full dispatch content here...",
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       featured: false,
+      views: 0,
       imageUrl: ""
     };
     setArticles([newArticle, ...articles]);
@@ -538,6 +552,17 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
       setConfig({ ...config, team: updatedTeam });
     }
   };
+
+  // --- LIVE ANALYTICS CALCULATIONS ---
+  const totalReads = articles.reduce((sum, a) => sum + (a.views || 0), 0);
+  
+  const viewsByCat = {};
+  articles.forEach(a => { viewsByCat[a.category] = (viewsByCat[a.category] || 0) + (a.views || 0); });
+  const topCategory = Object.keys(viewsByCat).length > 0 
+    ? Object.keys(viewsByCat).reduce((a, b) => viewsByCat[a] > viewsByCat[b] ? a : b) 
+    : 'None';
+  
+  const avgViews = articles.length > 0 ? Math.round(totalReads / articles.length) : 0;
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-200 flex flex-col md:flex-row font-sans selection:bg-red-900 selection:text-white">
@@ -689,24 +714,39 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                                 )}
                                 <h3 className="text-3xl md:text-4xl font-black uppercase mb-3 leading-tight tracking-tighter">{article.title || 'Untitled Dispatch'}</h3>
                                 <div className="text-xs font-bold uppercase tracking-widest mb-6 opacity-60 border-t pt-2 inline-block" style={{ color: config.theme.primary }}>
-                                  {article.category} • {article.date}
+                                  {article.author || 'Anonymous'} • {article.category} • {article.date}
                                 </div>
                                 <p className="whitespace-pre-wrap leading-relaxed text-lg">{article.content || article.excerpt || 'No content provided.'}</p>
                               </div>
                             ) : (
                               <div className="space-y-5">
-                                <div>
-                                  <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Dispatch Headline</label>
-                                  <input 
-                                    type="text" value={article.title}
-                                    placeholder="Enter headline..."
-                                    onChange={(e) => {
-                                      const newArticles = [...articles];
-                                      newArticles[index].title = e.target.value;
-                                      setArticles(newArticles);
-                                    }}
-                                    className="bg-gray-950 border border-gray-800 text-lg font-bold text-white w-full p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all"
-                                  />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Dispatch Headline</label>
+                                    <input 
+                                      type="text" value={article.title}
+                                      placeholder="Enter headline..."
+                                      onChange={(e) => {
+                                        const newArticles = [...articles];
+                                        newArticles[index].title = e.target.value;
+                                        setArticles(newArticles);
+                                      }}
+                                      className="bg-gray-950 border border-gray-800 text-lg font-bold text-white w-full p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Author / Editor Name</label>
+                                    <input 
+                                      type="text" value={article.author || ''}
+                                      placeholder="Editor Name..."
+                                      onChange={(e) => {
+                                        const newArticles = [...articles];
+                                        newArticles[index].author = e.target.value;
+                                        setArticles(newArticles);
+                                      }}
+                                      className="bg-gray-950 border border-gray-800 text-lg font-bold text-gray-300 w-full p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all"
+                                    />
+                                  </div>
                                 </div>
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -785,19 +825,34 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 shadow-lg">
                     <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Reads</div>
-                    <div className="text-5xl font-black text-white">42.8k</div>
-                    <div className="text-green-500 text-xs mt-3 font-bold flex items-center gap-1">↑ 14% vs last period</div>
+                    <div className="text-5xl font-black text-white">{totalReads.toLocaleString()}</div>
+                    <div className="text-green-500 text-xs mt-3 font-bold flex items-center gap-1">Live Database Tally</div>
                   </div>
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 shadow-lg">
-                    <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Retention Avg</div>
-                    <div className="text-5xl font-black text-white">6m 14s</div>
-                    <div className="text-blue-400 text-xs mt-3 font-bold uppercase tracking-widest">Optimal Engagement</div>
+                    <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Avg Views / Dispatch</div>
+                    <div className="text-5xl font-black text-white">{avgViews}</div>
+                    <div className="text-blue-400 text-xs mt-3 font-bold uppercase tracking-widest">Global Reader Metric</div>
                   </div>
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 border-l-4 border-l-red-600 shadow-lg">
                     <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Top Influence</div>
-                    <div className="text-4xl font-black text-white uppercase">Theory</div>
+                    <div className="text-4xl font-black text-white uppercase truncate">{topCategory}</div>
                     <div className="text-red-400 text-xs mt-3 font-bold uppercase tracking-widest">Trending Category</div>
                   </div>
+                </div>
+
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-xl">
+                   <h4 className="text-white font-bold mb-4 uppercase text-xs tracking-widest text-gray-400">Most Read Dispatches</h4>
+                   <div className="space-y-2">
+                     {[...articles].sort((a,b) => (b.views||0) - (a.views||0)).slice(0, 5).map((a, i) => (
+                       <div key={a.id} className="flex justify-between items-center bg-gray-950 p-4 rounded-lg border border-gray-800">
+                         <div className="flex items-center gap-4 truncate pr-4">
+                           <span className="text-gray-600 font-black text-lg w-4">{i + 1}</span>
+                           <span className="text-gray-200 font-bold truncate">{a.title}</span>
+                         </div>
+                         <div className="text-red-400 font-mono text-sm shrink-0">{a.views || 0} views</div>
+                       </div>
+                     ))}
+                   </div>
                 </div>
               </section>
             )}
