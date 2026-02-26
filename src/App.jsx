@@ -8,7 +8,7 @@ import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 import { 
   Settings, Terminal, Database, Palette, 
-  FileText, LogOut, ChevronRight, CheckCircle,
+  FileText, ChevronRight, CheckCircle,
   Image as ImageIcon, Eye, Edit3, Link as LinkIcon,
   Plus, Trash2, Users, BarChart
 } from 'lucide-react';
@@ -42,16 +42,17 @@ const INITIAL_ARTICLES = [
   }
 ];
 
-// --- PURE VITE ENVIRONMENT VARIABLES ---
-const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+// --- ENVIRONMENT VARIABLES (Vite Pattern) ---
+// Using fallback checks to ensure local builds don't crash if a variable is missing
+const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
 
 const fbConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
 };
 
 // --- MAIN APPLICATION COMPONENT ---
@@ -59,7 +60,7 @@ export default function AppWrapper() {
   if (!CLERK_KEY || !fbConfig.apiKey) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-10">
-         <div className="bg-red-900/20 border border-red-500 text-red-100 p-6 rounded-lg max-w-lg text-center font-mono">
+         <div className="bg-red-900/20 border border-red-500 text-red-100 p-6 rounded-lg max-w-lg text-center font-mono shadow-2xl">
             <h2 className="text-xl font-bold mb-2 uppercase">Missing API Keys</h2>
             <p className="text-sm mb-4">Clerk or Firebase keys are missing from your environment.</p>
             <div className="text-xs text-left bg-black/40 p-4 rounded space-y-2">
@@ -122,9 +123,9 @@ function VanguardApp() {
   useEffect(() => {
     if (!fbUser || !db) return;
 
-    // Hardcoded standard paths so Cloudflare compilation never fails
-    const configRef = doc(db, 'artifacts', 'vanguard-app', 'public', 'data', 'config');
-    const articlesRef = doc(db, 'artifacts', 'vanguard-app', 'public', 'data', 'articles');
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
+    const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config');
+    const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles');
 
     const unsubConfig = onSnapshot(configRef, (snap) => {
       if (snap.exists()) {
@@ -390,8 +391,9 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
   const handleSave = async () => {
     if (!db || !fbUser) return;
     try {
-      const configRef = doc(db, 'artifacts', 'vanguard-app', 'public', 'data', 'config');
-      const articlesRef = doc(db, 'artifacts', 'vanguard-app', 'public', 'data', 'articles');
+      const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
+      const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config');
+      const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles');
       
       await setDoc(configRef, config);
       await setDoc(articlesRef, { items: articles });
