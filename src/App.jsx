@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactGA from "react-ga4";
 import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useClerk, UserButton } from "@clerk/clerk-react";
 import { 
   Settings, Terminal, Database, Palette, 
