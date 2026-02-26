@@ -55,9 +55,14 @@ const INITIAL_ARTICLES = [
 ];
 
 // --- MAIN APPLICATION COMPONENT ---
-// This is the default export so Vite knows what to load
 export default function App() {
-  const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  // Safe environment check for Vite
+  let PUBLISHABLE_KEY = "";
+  try {
+    PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
+  } catch (err) {
+    PUBLISHABLE_KEY = "";
+  }
 
   if (!PUBLISHABLE_KEY) {
     return (
@@ -88,12 +93,14 @@ export default function App() {
 function VanguardApp() {
   const [view, setView] = useState('public'); 
   
-  // Safe deep merge to prevent white screen crashes from missing object keys
+  // Safe deep merge to prevent white screen crashes from corrupted local storage
   const [config, setConfig] = useState(() => {
     try {
       const saved = localStorage.getItem('vanguard_config');
       if (!saved) return DEFAULT_CONFIG;
       const parsed = JSON.parse(saved);
+      if (typeof parsed !== 'object' || parsed === null) return DEFAULT_CONFIG;
+
       return {
         ...DEFAULT_CONFIG,
         ...parsed,
@@ -111,7 +118,9 @@ function VanguardApp() {
   const [articles, setArticles] = useState(() => {
     try {
       const saved = localStorage.getItem('vanguard_articles');
-      return saved ? JSON.parse(saved) : INITIAL_ARTICLES;
+      if (!saved) return INITIAL_ARTICLES;
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : INITIAL_ARTICLES;
     } catch (e) {
       return INITIAL_ARTICLES;
     }
@@ -137,8 +146,8 @@ function VanguardApp() {
                 <p className="text-gray-400 text-sm mt-2 mb-6">Central dispatch terminal access.</p>
               </div>
               
-              {/* Simplified SignIn to prevent routing conflicts */}
-              <SignIn />
+              {/* CRITICAL FIX: routing="hash" prevents the white screen crash on single-page apps */}
+              <SignIn routing="hash" forceRedirectUrl="/" />
               
               <button 
                 onClick={() => setView('public')}
@@ -307,7 +316,7 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('moderator');
 
-  // Prevent crashes if Clerk is still thinking
+  // Prevent crashes if Clerk is still loading user data
   if (!isLoaded) return (
     <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center font-mono text-red-500">
       <Terminal size={48} className="animate-pulse mb-4" />
