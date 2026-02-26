@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import ReactGA from "react-ga4";
+import React, { useState, useEffect } from 'react';
 import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useClerk, UserButton } from "@clerk/clerk-react";
+import ReactGA from "react-ga4";
 import { 
   Settings, Terminal, Database, Palette, 
   FileText, LogOut, ChevronRight, CheckCircle,
@@ -49,17 +49,21 @@ const INITIAL_ARTICLES = [
 
 // --- MAIN APPLICATION COMPONENT ---
 export default function AppWrapper() {
-  // Safe check for environment variables
-  const PUBLISHABLE_KEY = typeof import.meta !== 'undefined' && import.meta.env 
-    ? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY 
-    : null;
+  const PUBLISHABLE_KEY = typeof import.meta !== 'undefined' ? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY : '';
+  const GA_ID = typeof import.meta !== 'undefined' ? import.meta.env.VITE_GA_MEASUREMENT_ID : '';
+
+  useEffect(() => {
+    if (GA_ID) {
+      ReactGA.initialize(GA_ID);
+    }
+  }, [GA_ID]);
 
   if (!PUBLISHABLE_KEY) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-10">
          <div className="bg-red-900/20 border border-red-500 text-red-100 p-6 rounded-lg max-w-lg text-center font-mono">
-            <h2 className="text-xl font-bold mb-2 uppercase">Missing Clerk API Key</h2>
-            <p className="text-sm">Please check your <code>.env.local</code> file.</p>
+            <h2 className="text-xl font-bold mb-2 uppercase">System Configuration Error</h2>
+            <p className="text-sm opacity-80">VITE_CLERK_PUBLISHABLE_KEY is missing in .env.local</p>
          </div>
       </div>
     );
@@ -74,23 +78,18 @@ export default function AppWrapper() {
 
 function VanguardApp() {
   const [view, setView] = useState('public'); 
-  
   const [config, setConfig] = useState(() => {
     try {
       const saved = localStorage.getItem('vanguard_config');
       return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
-    } catch (e) {
-      return DEFAULT_CONFIG;
-    }
+    } catch (e) { return DEFAULT_CONFIG; }
   });
   
   const [articles, setArticles] = useState(() => {
     try {
       const saved = localStorage.getItem('vanguard_articles');
       return saved ? JSON.parse(saved) : INITIAL_ARTICLES;
-    } catch (e) {
-      return INITIAL_ARTICLES;
-    }
+    } catch (e) { return INITIAL_ARTICLES; }
   });
 
   return (
@@ -107,26 +106,15 @@ function VanguardApp() {
         <>
           <SignedOut>
             <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 p-4">
-              <div className="mb-8 text-center">
-                <Terminal size={48} className="mx-auto mb-4" style={{ color: config.theme.primary }} />
-                <h2 className="text-2xl text-white font-bold uppercase tracking-wider">Vanguard CMS Access</h2>
-                <p className="text-gray-400 text-sm mt-2 mb-6">Authorized personnel only.</p>
-              </div>
+              <Terminal size={48} className="text-red-600 mb-6" />
               <SignIn routing="hash" />
-              <button 
-                onClick={() => setView('public')}
-                className="mt-8 text-gray-500 hover:text-white text-sm transition-colors font-mono"
-              >
-                ← Return to Public Dispatch
-              </button>
+              <button onClick={() => setView('public')} className="mt-8 text-gray-500 hover:text-white text-sm font-mono">← Return to Dispatch</button>
             </div>
           </SignedOut>
           <SignedIn>
             <AdminDashboard 
-              config={config} 
-              setConfig={setConfig}
-              articles={articles}
-              setArticles={setArticles}
+              config={config} setConfig={setConfig}
+              articles={articles} setArticles={setArticles}
               onReturnPublic={() => setView('public')}
             />
           </SignedIn>
@@ -141,139 +129,87 @@ function PublicSite({ config, articles, onSecretLogin }) {
   const { identity, theme, categories } = config;
   const [activeCategory, setActiveCategory] = useState(null);
 
-  const featuredArticle = articles.find(a => a.featured) || articles[0] || null;
-  const otherArticles = articles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
+  useEffect(() => {
+    const path = activeCategory ? `/category/${activeCategory.toLowerCase().replace(/\s+/g, '-')}` : '/home';
+    ReactGA.send({ hitType: "pageview", page: path, title: identity.siteName });
+  }, [activeCategory, identity.siteName]);
+
+  const featuredArticle = articles.find(a => a.featured) || articles[0];
+  const otherArticles = articles.filter(a => a.id !== featuredArticle?.id);
   const categoryArticles = articles.filter(a => a.category === activeCategory);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ backgroundColor: theme.background, color: theme.text, fontFamily: theme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
-      <div className="w-full text-center py-1 text-xs tracking-widest uppercase font-bold text-white" style={{ backgroundColor: theme.primary }}>
-        Workers of the world, unite!
-      </div>
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 w-full">
-        <header className="py-8 border-b-8 mb-8" style={{ borderColor: theme.text }}>
-          <div className="flex justify-between items-end border-b-2 pb-2 mb-4" style={{ borderColor: theme.text }}>
-            <span className="text-sm font-bold uppercase tracking-wider">{identity.mastheadDate}</span>
-            <span className="text-sm font-bold uppercase tracking-wider">Issue No. 48</span>
-          </div>
-          <h1 
-            onClick={() => setActiveCategory(null)}
-            className="text-6xl md:text-8xl lg:text-9xl font-black text-center uppercase tracking-tighter leading-none mb-4 cursor-pointer hover:opacity-90 transition-opacity" 
-            style={{ color: theme.primary }}
-          >
-            {identity.siteName}
-          </h1>
-          <p className="text-center text-xl md:text-2xl italic font-semibold border-t-2 pt-4" style={{ borderColor: theme.text }}>{identity.tagline}</p>
-        </header>
-
-        <nav className="border-y-4 py-3 mb-12 flex flex-wrap justify-center gap-6 md:gap-12" style={{ borderColor: theme.text }}>
-          {categories.map((cat) => (
-            <span 
-              key={cat} 
-              onClick={() => setActiveCategory(cat)}
-              className={`uppercase font-bold tracking-widest text-sm hover:underline cursor-pointer transition-colors ${activeCategory === cat ? 'underline' : 'opacity-80 hover:opacity-100'}`}
-              style={{ color: activeCategory === cat ? theme.primary : theme.text }}
-            >
-              {cat}
-            </span>
-          ))}
-        </nav>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          <main className="lg:col-span-8">
-            {activeCategory ? (
-              <div className="mb-16 animate-in fade-in duration-500">
-                <h2 className="text-4xl md:text-5xl font-black uppercase mb-8 border-b-4 pb-2" style={{ borderColor: theme.text }}>
-                  Dispatch: {activeCategory}
-                </h2>
-                <div className="space-y-12">
-                  {categoryArticles.length > 0 ? (
-                    categoryArticles.map(article => (
-                      <article key={article.id} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: theme.text }}>
-                        {article.imageUrl && (
-                          <img 
-                            src={article.imageUrl} 
-                            alt={article.title}
-                            className="w-full h-64 object-cover mb-4 border-4"
-                            style={{ borderColor: theme.text, filter: 'grayscale(100%) contrast(120%)' }}
-                          />
-                        )}
-                        <h3 className="text-3xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                        <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70">{article.date}</div>
-                        <p className="leading-relaxed text-lg">{article.excerpt}</p>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="text-xl italic font-medium opacity-70">No dispatches filed under this category yet.</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <>
-                {featuredArticle && (
-                  <article className="mb-16">
-                    {featuredArticle.imageUrl ? (
-                      <img 
-                        src={featuredArticle.imageUrl} 
-                        alt={featuredArticle.title}
-                        className="w-full h-64 md:h-96 object-cover mb-6 border-4"
-                        style={{ borderColor: theme.primary, filter: 'grayscale(100%) contrast(120%)' }}
-                      />
-                    ) : (
-                      <div className="w-full h-64 md:h-96 mb-6 flex items-center justify-center border-4" style={{ backgroundColor: `${theme.primary}20`, borderColor: theme.primary, mixBlendMode: 'multiply' }}>
-                        <div className="text-center" style={{ color: theme.primary }}>
-                          <ImageIcon size={64} className="mx-auto mb-4 opacity-80" />
-                          <p className="font-bold uppercase tracking-widest opacity-80">[ ARCHIVAL WOODCUT ]</p>
-                        </div>
-                      </div>
-                    )}
-                    <h2 className="text-4xl md:text-6xl font-black uppercase leading-none mb-4 tracking-tight">{featuredArticle.title}</h2>
-                    <div className="flex items-center gap-4 mb-6 text-sm font-bold uppercase tracking-wider" style={{ color: theme.primary }}>
-                      <span onClick={() => setActiveCategory(featuredArticle.category)} className="cursor-pointer hover:underline">{featuredArticle.category}</span>
-                      <span>•</span>
-                      <span>{featuredArticle.date}</span>
-                    </div>
-                    <p className="text-xl leading-relaxed font-medium">{featuredArticle.excerpt}</p>
-                  </article>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-4 pt-8" style={{ borderColor: theme.text }}>
-                  {otherArticles.map(article => (
-                    <article key={article.id} className="group cursor-pointer">
-                      {article.imageUrl && (
-                        <img 
-                          src={article.imageUrl} 
-                          alt={article.title}
-                          className="w-full h-40 object-cover mb-4 border-2"
-                          style={{ borderColor: theme.text, filter: 'grayscale(100%) contrast(120%)' }}
-                        />
-                      )}
-                      <h3 className="text-2xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                      <div className="text-xs font-bold uppercase tracking-wider mb-3 opacity-70" style={{ color: theme.primary }}>{article.category}</div>
-                      <p className="leading-snug">{article.excerpt}</p>
-                    </article>
-                  ))}
-                </div>
-              </>
-            )}
-          </main>
-          <aside className="lg:col-span-4 space-y-12">
-            <div className="p-6 border-4 shadow-[8px_8px_0px_0px]" style={{ borderColor: theme.text, shadowColor: theme.primary, backgroundColor: theme.background }}>
-              <h3 className="text-2xl font-black uppercase mb-4 border-b-2 pb-2" style={{ borderColor: theme.text }}>
-                {identity.aboutTitle || "The Program"}
-              </h3>
-              <div className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{identity.aboutText}</div>
-            </div>
-          </aside>
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: theme.background, color: theme.text, fontFamily: theme.fontFamily === 'serif' ? 'Georgia, serif' : 'sans-serif' }}>
+      <header className="max-w-7xl mx-auto px-4 py-8 border-b-8 mb-8 w-full" style={{ borderColor: theme.text }}>
+        <div className="flex justify-between items-end border-b-2 pb-2 mb-4" style={{ borderColor: theme.text }}>
+          <span className="text-sm font-bold uppercase tracking-wider">{identity.mastheadDate}</span>
+          <span className="text-sm font-bold uppercase tracking-wider">Workers Edition</span>
         </div>
-      </div>
+        <h1 
+          onClick={() => setActiveCategory(null)}
+          className="text-6xl md:text-9xl font-black text-center uppercase tracking-tighter leading-none mb-4 cursor-pointer" 
+          style={{ color: theme.primary }}
+        >
+          {identity.siteName}
+        </h1>
+        <p className="text-center text-xl italic font-semibold border-t-2 pt-4" style={{ borderColor: theme.text }}>{identity.tagline}</p>
+      </header>
+
+      <nav className="border-y-4 py-3 mb-12 flex flex-wrap justify-center gap-6 md:gap-12 max-w-7xl mx-auto w-full" style={{ borderColor: theme.text }}>
+        {categories.map((cat) => (
+          <span 
+            key={cat} 
+            onClick={() => setActiveCategory(cat)}
+            className={`uppercase font-bold tracking-widest text-sm hover:underline cursor-pointer ${activeCategory === cat ? 'underline' : 'opacity-80'}`}
+          >
+            {cat}
+          </span>
+        ))}
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 grid grid-cols-1 lg:grid-cols-12 gap-12 flex-1 w-full">
+        <div className="lg:col-span-8">
+          {activeCategory ? (
+            <div className="space-y-12">
+              <h2 className="text-4xl font-black uppercase border-b-4 pb-2" style={{ borderColor: theme.text }}>Dispatch: {activeCategory}</h2>
+              {categoryArticles.map(article => (
+                <article key={article.id} className="border-b-2 pb-8 last:border-0" style={{ borderColor: theme.text }}>
+                  <h3 className="text-3xl font-bold uppercase leading-tight mb-2 hover:underline cursor-pointer">{article.title}</h3>
+                  <p className="leading-relaxed text-lg">{article.excerpt}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <>
+              {featuredArticle && (
+                <article className="mb-16">
+                  {featuredArticle.imageUrl && <img src={featuredArticle.imageUrl} className="w-full h-96 object-cover mb-6 border-4 grayscale contrast-125" style={{ borderColor: theme.primary }} />}
+                  <h2 className="text-4xl md:text-7xl font-black uppercase leading-none mb-4 tracking-tight">{featuredArticle.title}</h2>
+                  <p className="text-xl leading-relaxed font-medium">{featuredArticle.excerpt}</p>
+                </article>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-4 pt-8" style={{ borderColor: theme.text }}>
+                {otherArticles.map(article => (
+                  <article key={article.id} className="group">
+                    <h3 className="text-2xl font-bold uppercase leading-tight mb-2 group-hover:underline cursor-pointer">{article.title}</h3>
+                    <div className="text-xs font-bold uppercase mb-2" style={{ color: theme.primary }}>{article.category}</div>
+                    <p className="leading-snug">{article.excerpt}</p>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        <aside className="lg:col-span-4">
+          <div className="p-6 border-4 shadow-[8px_8px_0px_0px]" style={{ borderColor: theme.text, backgroundColor: theme.background }}>
+            <h3 className="text-2xl font-black uppercase mb-4 border-b-2 pb-2" style={{ borderColor: theme.text }}>{identity.aboutTitle}</h3>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{identity.aboutText}</div>
+          </div>
+        </aside>
+      </main>
 
       <footer className="mt-20 py-8 border-t-4 text-center group" style={{ borderColor: theme.text }}>
-        <button 
-          onClick={onSecretLogin}
-          className="text-xs font-mono uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-500 cursor-pointer"
-          style={{ color: theme.text }}
-        >
+        <button onClick={onSecretLogin} className="text-xs font-mono uppercase opacity-0 group-hover:opacity-100 transition-opacity duration-500">
            [ TERMINAL ACCESS ] 
         </button>
       </footer>
@@ -283,27 +219,26 @@ function PublicSite({ config, articles, onSecretLogin }) {
 
 // --- ADMIN DASHBOARD COMPONENT ---
 function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPublic }) {
-  const { user } = useUser();
-  const { signOut } = useClerk();
   const [activeTab, setActiveTab] = useState('content');
   const [savedStatus, setSavedStatus] = useState(false);
-  const [previewStates, setPreviewStates] = useState({});
-  const [newEmail, setNewEmail] = useState('');
-  const [newRole, setNewRole] = useState('moderator');
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(null);
 
-  const userEmail = user?.primaryEmailAddress?.emailAddress || '';
-  const configTeam = config.team || [];
-  const teamMember = configTeam.find(m => m.email.toLowerCase() === userEmail.toLowerCase());
-  const isAdmin = userEmail.includes('admin') || (teamMember && teamMember.role === 'admin');
-  const roleName = isAdmin ? 'Admin' : 'Moderator';
-
-  const tabs = [
-    { id: 'content', label: 'Articles & Content', icon: FileText, requireAdmin: false },
-    { id: 'analytics', label: 'Reader Analytics', icon: BarChart, requireAdmin: false },
-    { id: 'identity', label: 'Identity Settings', icon: Settings, requireAdmin: true },
-    { id: 'theme', label: 'Theme & Branding', icon: Palette, requireAdmin: true },
-    { id: 'team', label: 'Team & Permissions', icon: Users, requireAdmin: true },
-  ].filter(tab => !tab.requireAdmin || isAdmin);
+  // Fetch Real Analytics Data from Cloudflare Proxy
+  useEffect(() => {
+    if (activeTab === 'analytics' && !analyticsData) {
+      setIsLoadingAnalytics(true);
+      fetch('/api/analytics')
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) setAnalyticsData(data.data);
+          else setAnalyticsError(data.error);
+        })
+        .catch(err => setAnalyticsError(err.message))
+        .finally(() => setIsLoadingAnalytics(false));
+    }
+  }, [activeTab, analyticsData]);
 
   const handleSave = () => {
     localStorage.setItem('vanguard_config', JSON.stringify(config));
@@ -328,8 +263,8 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
       id: Date.now(),
       title: "New Dispatch Draft",
       category: config.categories[0],
-      excerpt: "Enter your article excerpt here...",
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      excerpt: "Enter excerpt...",
+      date: new Date().toLocaleDateString(),
       featured: false,
       imageUrl: ""
     };
@@ -337,172 +272,118 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-200 flex flex-col md:flex-row font-sans">
-      {/* Sidebar and Header Logic remains mostly the same, ensuring clean standard spacing */}
-      <aside className="w-full md:w-64 bg-gray-900 border-r border-gray-800 flex flex-col">
-        <div className="p-6 border-b border-gray-800 flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2 tracking-tight">
-              <Terminal size={20} className="text-red-500" /> VANGUARD
-            </h2>
-            <div className="mt-1 text-xs text-gray-400 font-mono break-all">
-              {userEmail} <br/>
-              ROLE: <span className={isAdmin ? 'text-red-400' : 'text-blue-400'}>{roleName.toUpperCase()}</span>
-            </div>
-          </div>
-          <div className="bg-gray-800 rounded-full p-1 border border-gray-700 ml-2">
-            <UserButton afterSignOutUrl="/" />
-          </div>
-        </div>
-        
-        <nav className="flex-1 py-4">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-colors ${activeTab === tab.id ? 'bg-gray-800 text-white border-r-2 border-red-500' : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}`}
-            >
-              <tab.icon size={18} /> {tab.label}
+    <div className="min-h-screen bg-gray-950 text-gray-200 flex flex-col md:flex-row">
+      <aside className="w-full md:w-64 bg-gray-900 border-r border-gray-800 p-6 flex flex-col">
+        <h2 className="text-xl font-bold flex items-center gap-2 mb-8 text-white"><Terminal className="text-red-600" /> VANGUARD</h2>
+        <nav className="flex-1 space-y-2">
+          {['content', 'analytics', 'identity', 'theme'].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} className={`w-full text-left px-4 py-2 rounded capitalize ${activeTab === tab ? 'bg-red-900 text-white' : 'text-gray-400'}`}>
+              {tab === 'content' ? 'Articles' : tab}
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-gray-800">
-          <button onClick={onReturnPublic} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-sm transition-colors">
-            Return to Public Site
-          </button>
+        <div className="pt-6 border-t border-gray-800">
+          <UserButton showName />
+          <button onClick={onReturnPublic} className="w-full mt-4 bg-gray-800 py-2 rounded text-sm hover:bg-gray-700 transition">Exit Terminal</button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-8 shrink-0">
-          <div className="flex items-center gap-2 text-sm text-gray-400 font-mono">
-            <span>root</span> <ChevronRight size={14} /> <span className="text-white">{activeTab}</span>
-          </div>
-          <button 
-            onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-2 bg-red-700 hover:bg-red-600 text-white text-sm font-medium rounded transition-colors shadow-lg"
-          >
+      <main className="flex-1 h-screen overflow-hidden flex flex-col">
+        <header className="h-16 bg-gray-900 border-b border-gray-800 flex items-center justify-between px-8">
+          <div className="text-sm font-mono text-gray-500">root / {activeTab}</div>
+          <button onClick={handleSave} className="flex items-center gap-2 bg-red-700 hover:bg-red-600 text-white px-4 py-2 rounded transition shadow-lg">
             {savedStatus ? <CheckCircle size={16} /> : <Database size={16} />}
-            {savedStatus ? 'Saved Successfully' : 'Deploy Changes'}
+            {savedStatus ? 'Changes Saved' : 'Deploy Changes'}
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8 bg-gray-950">
-          <div className="max-w-4xl mx-auto space-y-8">
-            {activeTab === 'content' && (
-              <section className="space-y-6">
-                <div className="flex justify-between items-end border-b border-gray-800 pb-4">
-                  <h3 className="text-2xl font-bold text-white">Article Management</h3>
-                  <button onClick={addArticle} className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded text-sm"><Plus size={16} /> New Article</button>
+        <div className="flex-1 overflow-y-auto p-8">
+          {activeTab === 'content' && (
+            <div className="max-w-4xl mx-auto space-y-6">
+              <button onClick={addArticle} className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded text-sm hover:bg-gray-700 transition"><Plus size={16} /> New Dispatch</button>
+              {articles.map(article => (
+                <div key={article.id} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden shadow-2xl">
+                  <div className="bg-gray-800/50 p-4 flex justify-between items-center border-b border-gray-800">
+                    <label className="flex items-center gap-2 text-xs font-bold text-gray-400 cursor-pointer">
+                      <input type="checkbox" checked={article.featured} onChange={(e) => handleFeaturedToggle(article.id, e.target.checked)} className="accent-red-600" /> Featured on Masthead
+                    </label>
+                    <button onClick={() => setArticles(prev => prev.filter(a => a.id !== article.id))} className="text-gray-500 hover:text-red-500"><Trash2 size={16}/></button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <input className="w-full bg-black border border-gray-800 p-3 rounded font-bold text-xl text-white" value={article.title} onChange={(e) => updateArticle(article.id, { title: e.target.value })} placeholder="Title" />
+                    <textarea className="w-full bg-black border border-gray-800 p-3 rounded text-gray-300 h-32" value={article.excerpt} onChange={(e) => updateArticle(article.id, { excerpt: e.target.value })} placeholder="Excerpt" />
+                  </div>
                 </div>
-                
-                {articles.map((article) => (
-                  <div key={article.id} className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
-                    <div className="bg-gray-800/50 p-4 flex justify-between items-center">
-                       <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer">
-                          <input 
-                            type="checkbox" 
-                            checked={article.featured}
-                            onChange={(e) => handleFeaturedToggle(article.id, e.target.checked)}
-                            className="accent-red-600"
-                          /> Featured
-                       </label>
-                       <button onClick={() => setArticles(articles.filter(a => a.id !== article.id))} className="text-gray-500 hover:text-red-500"><Trash2 size={16}/></button>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <div className="max-w-4xl mx-auto">
+              {isLoadingAnalytics ? (
+                <div className="flex flex-col items-center py-20 text-gray-500"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-red-500 mb-4"></div>Fetching GA4 Data...</div>
+              ) : analyticsError ? (
+                <div className="bg-red-900/20 border border-red-500 p-6 rounded text-red-200 font-mono text-sm">{analyticsError}</div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="bg-gray-900 p-8 rounded border border-gray-800 shadow-xl">
+                      <div className="text-xs text-gray-500 uppercase font-bold mb-2">Total Page Views (30d)</div>
+                      <div className="text-5xl font-black text-white">{analyticsData?.rows?.reduce((acc, r) => acc + parseInt(r.metricValues[2].value), 0) || 0}</div>
                     </div>
-                    <div className="p-5 space-y-4">
-                      <input 
-                        className="w-full bg-gray-950 border border-gray-800 p-3 rounded text-white"
-                        value={article.title}
-                        onChange={(e) => updateArticle(article.id, { title: e.target.value })}
-                      />
-                      <textarea 
-                        className="w-full bg-gray-950 border border-gray-800 p-3 rounded text-white min-h-[100px]"
-                        value={article.excerpt}
-                        onChange={(e) => updateArticle(article.id, { excerpt: e.target.value })}
-                      />
+                    <div className="bg-gray-900 p-8 rounded border border-gray-800 shadow-xl">
+                      <div className="text-xs text-gray-500 uppercase font-bold mb-2">Active Readers</div>
+                      <div className="text-5xl font-black text-white">{analyticsData?.rows?.reduce((acc, r) => acc + parseInt(r.metricValues[0].value), 0) || 0}</div>
+                    </div>
+                  </div>
+                  <div className="bg-gray-900 rounded border border-gray-800 overflow-hidden shadow-xl">
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-black text-gray-500 uppercase text-xs">
+                        <tr><th className="px-6 py-4">Page Title / Path</th><th className="px-6 py-4 text-right">Views</th></tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800">
+                        {analyticsData?.rows?.map((row, i) => (
+                          <tr key={i} className="hover:bg-gray-800/30 transition-colors">
+                            <td className="px-6 py-4"><div className="text-white font-medium">{row.dimensionValues[0].value}</div><div className="text-xs text-gray-500 font-mono">{row.dimensionValues[1].value}</div></td>
+                            <td className="px-6 py-4 text-right font-mono text-red-500">{row.metricValues[2].value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'identity' && (
+            <div className="max-w-4xl mx-auto bg-gray-900 p-8 rounded-lg border border-gray-800 shadow-2xl space-y-6">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Dispatch Name</label>
+                <input className="w-full bg-black border border-gray-800 p-3 rounded text-2xl font-black text-red-600" value={config.identity.siteName} onChange={(e) => setConfig({...config, identity: {...config.identity, siteName: e.target.value}})} />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Manifesto / About</label>
+                <textarea className="w-full bg-black border border-gray-800 p-3 rounded text-gray-300 h-64" value={config.identity.aboutText} onChange={(e) => setConfig({...config, identity: {...config.identity, aboutText: e.target.value}})} />
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'theme' && (
+            <div className="max-w-4xl mx-auto bg-gray-900 p-8 rounded-lg border border-gray-800 shadow-2xl">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {['primary', 'accent', 'background', 'text'].map(colorKey => (
+                  <div key={colorKey}>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">{colorKey} Color</label>
+                    <div className="flex gap-4">
+                      <input type="color" value={config.theme[colorKey]} onChange={(e) => setConfig({...config, theme: {...config.theme, [colorKey]: e.target.value}})} className="h-12 w-16 bg-black border border-gray-800 rounded p-1" />
+                      <input value={config.theme[colorKey]} onChange={(e) => setConfig({...config, theme: {...config.theme, [colorKey]: e.target.value}})} className="flex-1 bg-black border border-gray-800 p-3 rounded font-mono uppercase" />
                     </div>
                   </div>
                 ))}
-              </section>
-            )}
-{/* ANALYTICS TAB */}
-{activeTab === 'analytics' && (
-  <section className="space-y-6">
-    <div className="border-b border-gray-800 pb-4">
-      <h3 className="text-2xl font-bold text-white">Reader Analytics</h3>
-      <p className="text-sm text-gray-400 mt-1">
-        Overview of dispatch circulation and reader engagement. 
-        <span className="text-red-400 ml-2">(Currently displaying simulated dashboard data)</span>
-      </p>
-    </div>
-    
-    {/* Top Metrics Cards */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 shadow-md">
-        <div className="flex justify-between items-start mb-2">
-          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Unique Readers</div>
-          <Users size={16} className="text-gray-600" />
-        </div>
-        <div className="text-4xl font-black text-white">14,204</div>
-        <div className="text-green-500 text-sm mt-2 font-mono text-xs">↑ +12.5% from last week</div>
-      </div>
-      
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 shadow-md">
-        <div className="flex justify-between items-start mb-2">
-          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Avg. Read Time</div>
-          <Eye size={16} className="text-gray-600" />
-        </div>
-        <div className="text-4xl font-black text-white">4m 12s</div>
-        <div className="text-red-500 text-sm mt-2 font-mono text-xs">↓ -2.1% from last week</div>
-      </div>
-      
-      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 shadow-md border-t-4 border-t-red-600">
-        <div className="flex justify-between items-start mb-2">
-          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Top Category</div>
-          <FileText size={16} className="text-red-900" />
-        </div>
-        <div className="text-2xl font-black text-white mt-3 leading-tight">Current Struggle</div>
-      </div>
-    </div>
-
-    {/* Top Performing Articles List */}
-    <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden shadow-md">
-      <div className="bg-gray-800/50 border-b border-gray-800 p-4">
-        <h4 className="text-white font-bold uppercase text-sm tracking-wider">Top Performing Dispatches</h4>
-      </div>
-      <div className="p-0">
-        <table className="w-full text-left text-sm text-gray-400">
-          <thead className="bg-gray-950/50 text-xs uppercase text-gray-500 border-b border-gray-800">
-            <tr>
-              <th className="px-6 py-3 font-medium">Article Title</th>
-              <th className="px-6 py-3 font-medium text-right">Views</th>
-              <th className="px-6 py-3 font-medium text-right">Completion Rate</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800">
-            {articles.slice(0, 4).map((a, i) => (
-              <tr key={i} className="hover:bg-gray-800/20 transition-colors">
-                <td className="px-6 py-4 font-medium text-gray-200 truncate max-w-xs">{a.title || 'Untitled Draft'}</td>
-                <td className="px-6 py-4 font-mono text-right">{Math.floor(8000 / (i + 1) + Math.random() * 500)}</td>
-                <td className="px-6 py-4 font-mono text-right">
-                  <span className={i === 0 ? "text-green-400" : "text-gray-400"}>
-                    {Math.floor(85 - (i * 12))}%
-                  </span>
-                </td>
-              </tr>
-            ))}
-            {articles.length === 0 && (
-              <tr>
-                <td colSpan="3" className="px-6 py-8 text-center text-gray-600 italic">No articles published yet.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-)}
-          </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
