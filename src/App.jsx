@@ -3,7 +3,7 @@ import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useAuth, useClerk,
 
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 import { 
@@ -16,7 +16,7 @@ import {
 // --- INITIAL DEFAULT DATA ---
 const DEFAULT_CONFIG = {
   identity: {
-    siteName: "The Vanguard Dispatch",
+    siteName: "what you need me to do",
     tagline: "Voice of the Red Commune",
     mastheadDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     aboutTitle: "The Program",
@@ -42,39 +42,21 @@ const INITIAL_ARTICLES = [
   }
 ];
 
-// --- FIREBASE CONFIGURATION ---
-// Automatically switches between Cloudflare (.env) and Preview Environments
-let fbConfig = null;
-try {
-  if (typeof __firebase_config !== 'undefined') {
-    fbConfig = JSON.parse(__firebase_config);
-  } else {
-    fbConfig = {
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-      appId: import.meta.env.VITE_FIREBASE_APP_ID
-    };
-  }
-} catch (e) {
-  console.error("Firebase config error:", e);
-}
+// --- PURE VITE ENVIRONMENT VARIABLES ---
+const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+const fbConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
+};
 
 // --- MAIN APPLICATION COMPONENT ---
 export default function AppWrapper() {
-  const getPublishableKey = () => {
-    try {
-      return import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
-    } catch (e) {
-      return '';
-    }
-  };
-
-  const PUBLISHABLE_KEY = getPublishableKey();
-
-  if (!PUBLISHABLE_KEY || !fbConfig?.apiKey) {
+  if (!CLERK_KEY || !fbConfig.apiKey) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center p-10">
          <div className="bg-red-900/20 border border-red-500 text-red-100 p-6 rounded-lg max-w-lg text-center font-mono">
@@ -95,7 +77,7 @@ export default function AppWrapper() {
   }
 
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+    <ClerkProvider publishableKey={CLERK_KEY}>
       <VanguardApp />
     </ClerkProvider>
   );
@@ -114,7 +96,7 @@ function VanguardApp() {
 
   // Initialize Firebase Connection
   useEffect(() => {
-    if (!fbConfig || !fbConfig.apiKey) return;
+    if (!fbConfig.apiKey) return;
     
     const app = initializeApp(fbConfig);
     const auth = getAuth(app);
@@ -123,11 +105,7 @@ function VanguardApp() {
 
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        await signInAnonymously(auth);
       } catch (e) {
         console.error("Firebase auth error:", e);
       }
@@ -144,9 +122,9 @@ function VanguardApp() {
   useEffect(() => {
     if (!fbUser || !db) return;
 
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
-    const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config');
-    const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles');
+    // Hardcoded standard paths so Cloudflare compilation never fails
+    const configRef = doc(db, 'artifacts', 'vanguard-app', 'public', 'data', 'config');
+    const articlesRef = doc(db, 'artifacts', 'vanguard-app', 'public', 'data', 'articles');
 
     const unsubConfig = onSnapshot(configRef, (snap) => {
       if (snap.exists()) {
@@ -412,9 +390,8 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
   const handleSave = async () => {
     if (!db || !fbUser) return;
     try {
-      const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
-      const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config');
-      const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles');
+      const configRef = doc(db, 'artifacts', 'vanguard-app', 'public', 'data', 'config');
+      const articlesRef = doc(db, 'artifacts', 'vanguard-app', 'public', 'data', 'articles');
       
       await setDoc(configRef, config);
       await setDoc(articlesRef, { items: articles });
