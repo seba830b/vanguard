@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useClerk, UserButton } from "@clerk/clerk-react";
 import { 
   Settings, Terminal, Database, Palette, 
@@ -46,8 +46,7 @@ const INITIAL_ARTICLES = [
 
 // --- MAIN APPLICATION COMPONENT ---
 export default function AppWrapper() {
-  // Safe environment check to prevent compilation crashes in strict preview targets
-  // In your local VS Code, Vite will handle import.meta.env correctly.
+  // Use a fallback for the publishable key to prevent errors in environments without import.meta.env
   const PUBLISHABLE_KEY = (typeof import.meta !== 'undefined' && import.meta.env) 
     ? import.meta.env.VITE_CLERK_PUBLISHABLE_KEY 
     : '';
@@ -63,7 +62,7 @@ export default function AppWrapper() {
             <div className="text-xs text-left bg-black/40 p-4 rounded space-y-3 leading-relaxed border border-red-500/20">
               <p>1. Ensure <code>.env.local</code> is in your project root.</p>
               <p>2. Add: <code>VITE_CLERK_PUBLISHABLE_KEY=pk_test_...</code></p>
-              <p>3. If deployed on Cloudflare, add it to <b>Settings - Environment Variables</b>.</p>
+              <p>3. If deployed on Cloudflare, add it to <b>Settings {'->'} Environment Variables</b>.</p>
               <p>4. Restart your terminal with <code>npm run dev</code>.</p>
             </div>
          </div>
@@ -84,7 +83,15 @@ function VanguardApp() {
   const [config, setConfig] = useState(() => {
     try {
       const saved = localStorage.getItem('vanguard_config');
-      return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+      if (!saved) return DEFAULT_CONFIG;
+      const parsed = JSON.parse(saved);
+      // Safety Merge: Ensures all nested objects exist even if storage is old
+      return {
+        ...DEFAULT_CONFIG,
+        ...parsed,
+        identity: { ...DEFAULT_CONFIG.identity, ...(parsed.identity || {}) },
+        theme: { ...DEFAULT_CONFIG.theme, ...(parsed.theme || {}) }
+      };
     } catch (e) {
       return DEFAULT_CONFIG;
     }
@@ -273,15 +280,18 @@ function PublicSite({ config, articles, onSecretLogin }) {
 
 // --- ADMIN DASHBOARD COMPONENT ---
 function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPublic }) {
-  const { user } = useUser();
+  const { isLoaded, user } = useUser();
   const [activeTab, setActiveTab] = useState('content');
   const [savedStatus, setSavedStatus] = useState(false);
   const [previewStates, setPreviewStates] = useState({});
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('moderator');
 
+  // Loading state safety check
+  if (!isLoaded) return <div className="min-h-screen bg-gray-950 flex items-center justify-center font-mono text-red-500">INITIALIZING VANGUARD_OS...</div>;
+
   const userEmail = user?.primaryEmailAddress?.emailAddress || '';
-  const isAdmin = userEmail.includes('admin') || (config.team || []).find(m => m.email === userEmail && m.role === 'admin');
+  const isAdmin = userEmail.includes('admin') || (config.team || []).find(m => m.email.toLowerCase() === userEmail.toLowerCase() && m.role === 'admin');
   const roleName = isAdmin ? 'Admin' : 'Moderator';
 
   const tabs = [
@@ -312,6 +322,7 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
     setArticles(prev => [newArticle, ...prev]);
   };
 
+  // Safe Immutable Article Updates
   const updateArticle = (id, updates) => {
     setArticles(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a));
   };
@@ -319,7 +330,7 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
   const toggleFeatured = (id, isChecked) => {
     setArticles(prev => prev.map(a => {
       if (a.id === id) return { ...a, featured: isChecked };
-      if (isChecked) return { ...a, featured: false }; // Enforce single feature article
+      if (isChecked) return { ...a, featured: false }; // Enforce single headline
       return a;
     }));
   };
@@ -551,6 +562,31 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
                       <label className="block text-xs font-mono text-gray-500 uppercase mb-2">Sidebar Manifesto (Program)</label>
                       <textarea value={config.identity.aboutText} onChange={(e) => setConfig(prev => ({...prev, identity: {...prev.identity, aboutText: e.target.value}}))} className="w-full h-48 bg-gray-950 border border-gray-800 rounded p-4 text-white leading-relaxed" />
                     </div>
+                 </div>
+               </section>
+            )}
+
+            {activeTab === 'theme' && isAdmin && (
+               <section className="space-y-6 animate-in fade-in duration-500">
+                 <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Theme Architecture</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {['primary', 'background', 'text'].map(colorKey => (
+                     <div key={colorKey} className="space-y-2">
+                       <label className="block text-xs font-mono text-gray-400 uppercase">{colorKey} Color</label>
+                       <div className="flex gap-3">
+                         <input 
+                           type="color" value={config.theme[colorKey]}
+                           onChange={(e) => setConfig(prev => ({...prev, theme: {...prev.theme, [colorKey]: e.target.value}}))}
+                           className="h-12 w-16 bg-gray-900 border border-gray-800 rounded cursor-pointer p-1"
+                         />
+                         <input 
+                           type="text" value={config.theme[colorKey]}
+                           onChange={(e) => setConfig(prev => ({...prev, theme: {...prev.theme, [colorKey]: e.target.value}}))}
+                           className="flex-1 bg-gray-950 border border-gray-800 rounded p-3 text-white font-mono text-sm uppercase focus:outline-none focus:border-red-500 transition-colors"
+                         />
+                       </div>
+                     </div>
+                   ))}
                  </div>
                </section>
             )}
