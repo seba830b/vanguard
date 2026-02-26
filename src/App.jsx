@@ -11,6 +11,7 @@ import {
   FileText, ChevronRight, CheckCircle,
   Image as ImageIcon, Eye, Edit3, Link as LinkIcon,
   Plus, Trash2, Users, BarChart, ChevronLeft
+  Moon, Sun //
 } from 'lucide-react';
 
 // --- INITIAL DEFAULT DATA ---
@@ -227,10 +228,19 @@ function VanguardApp() {
 }
 
 // --- PUBLIC SITE COMPONENT ---
+// --- PUBLIC SITE COMPONENT ---
 function PublicSite({ config, articles, onSecretLogin }) {
   const { identity, theme, categories } = config;
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedArticle, setSelectedArticle] = useState(null);
+  
+  // NEW: Dark Mode State
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // NEW: Computed Theme (Swaps colors if dark mode is active)
+  const activeTheme = isDarkMode 
+    ? { ...theme, background: '#121212', text: '#e5e5e5' } 
+    : theme;
 
   const todayDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const sortedArticles = [...(articles || [])].sort((a, b) => b.id - a.id);
@@ -238,6 +248,208 @@ function PublicSite({ config, articles, onSecretLogin }) {
   const featuredArticle = sortedArticles.find(a => a.featured) || sortedArticles[0] || null;
   const otherArticles = sortedArticles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
   const categoryArticles = sortedArticles.filter(a => a.category === activeCategory);
+
+  // NEW: Floating Dark Mode Toggle Button
+  const DarkModeToggle = () => (
+    <button 
+      onClick={() => setIsDarkMode(!isDarkMode)}
+      className="fixed top-6 right-6 z-50 p-2.5 rounded-full border-2 shadow-lg transition-transform hover:scale-110 active:scale-95"
+      style={{ 
+        borderColor: activeTheme.text, 
+        color: activeTheme.text, 
+        backgroundColor: activeTheme.background 
+      }}
+      title="Toggle Dark Mode"
+    >
+      {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+    </button>
+  );
+
+  // FULL ARTICLE VIEW
+  if (selectedArticle) {
+    return (
+      <div className="min-h-screen flex flex-col selection:bg-red-900 selection:text-white transition-colors duration-500" style={{ backgroundColor: activeTheme.background, color: activeTheme.text, fontFamily: activeTheme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
+        <DarkModeToggle />
+        <div className="w-full text-center py-1 text-xs tracking-widest uppercase font-bold text-white mb-8" style={{ backgroundColor: activeTheme.primary }}>
+          Workers of the world, unite!
+        </div>
+        
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 flex-1 w-full pb-20">
+          <button 
+            onClick={() => setSelectedArticle(null)}
+            className="mb-8 flex items-center gap-2 text-sm font-bold uppercase tracking-widest hover:underline cursor-pointer"
+            style={{ color: activeTheme.primary }}
+          >
+            <ChevronLeft size={16} /> Return to Dispatches
+          </button>
+
+          <article className="animate-in fade-in duration-500">
+            {selectedArticle.imageUrl && (
+              <img 
+                src={selectedArticle.imageUrl} 
+                alt={selectedArticle.title}
+                className="w-full h-64 md:h-[50vh] object-cover mb-8 border-4 grayscale hover:grayscale-0 transition-all duration-500 shadow-xl"
+                style={{ borderColor: activeTheme.text }}
+              />
+            )}
+            <div className="flex items-center gap-4 mb-4 text-sm font-bold uppercase tracking-wider" style={{ color: activeTheme.primary }}>
+              <span>{selectedArticle.category}</span>
+              <span>•</span>
+              <span>{selectedArticle.date}</span>
+            </div>
+            <h1 className="text-5xl md:text-7xl font-black uppercase leading-tight mb-8 tracking-tighter">
+              {selectedArticle.title}
+            </h1>
+            
+            <div className="text-xl md:text-2xl leading-relaxed whitespace-pre-wrap font-medium">
+              {selectedArticle.content || selectedArticle.excerpt}
+            </div>
+          </article>
+        </div>
+      </div>
+    );
+  }
+
+  // STANDARD GRID VIEW
+  return (
+    <div className="min-h-screen flex flex-col selection:bg-red-900 selection:text-white transition-colors duration-500" style={{ backgroundColor: activeTheme.background, color: activeTheme.text, fontFamily: activeTheme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
+      <DarkModeToggle />
+      <div className="w-full text-center py-1 text-xs tracking-widest uppercase font-bold text-white" style={{ backgroundColor: activeTheme.primary }}>
+        Workers of the world, unite!
+      </div>
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 w-full">
+        <header className="py-8 border-b-8 mb-8" style={{ borderColor: activeTheme.text }}>
+          <div className="flex justify-between items-end border-b-2 pb-2 mb-4" style={{ borderColor: activeTheme.text }}>
+            <span className="text-sm font-bold uppercase tracking-wider">{todayDate}</span>
+            <span className="text-sm font-bold uppercase tracking-wider">Issue No. 48</span>
+          </div>
+          <h1 
+            onClick={() => setActiveCategory(null)}
+            className="text-6xl md:text-8xl lg:text-9xl font-black text-center uppercase tracking-tighter leading-none mb-4 cursor-pointer hover:opacity-90 transition-opacity" 
+            style={{ color: activeTheme.primary }}
+          >
+            {identity.siteName}
+          </h1>
+          <p className="text-center text-xl md:text-2xl italic font-semibold border-t-2 pt-4" style={{ borderColor: activeTheme.text }}>{identity.tagline}</p>
+        </header>
+
+        <nav className="border-y-4 py-3 mb-12 flex flex-wrap justify-center gap-6 md:gap-12" style={{ borderColor: activeTheme.text }}>
+          {categories.map((cat, idx) => (
+            <span 
+              key={idx} 
+              onClick={() => setActiveCategory(cat)}
+              className={`uppercase font-bold tracking-widest text-sm hover:underline cursor-pointer transition-colors ${activeCategory === cat ? 'underline' : 'opacity-80 hover:opacity-100'}`}
+              style={{ color: activeCategory === cat ? activeTheme.primary : activeTheme.text }}
+            >
+              {cat}
+            </span>
+          ))}
+        </nav>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          <main className="lg:col-span-8">
+            {activeCategory ? (
+              <div className="mb-16 animate-in fade-in duration-500">
+                <h2 className="text-4xl md:text-5xl font-black uppercase mb-8 border-b-4 pb-2" style={{ borderColor: activeTheme.text }}>
+                  Dispatch: {activeCategory}
+                </h2>
+                <div className="space-y-12">
+                  {categoryArticles.length > 0 ? (
+                    categoryArticles.map(article => (
+                      <article key={article.id} onClick={() => setSelectedArticle(article)} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: activeTheme.text }}>
+                        {article.imageUrl && (
+                          <img 
+                            src={article.imageUrl} 
+                            alt={article.title}
+                            className="w-full h-64 object-cover mb-4 border-4 grayscale hover:grayscale-0 transition-all duration-500"
+                            style={{ borderColor: activeTheme.text }}
+                          />
+                        )}
+                        <h3 className="text-3xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
+                        <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70">{article.date}</div>
+                        <p className="leading-relaxed text-lg whitespace-pre-wrap">{article.excerpt}</p>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="text-xl italic font-medium opacity-70">No dispatches filed under this category yet.</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+                {featuredArticle && (
+                  <article onClick={() => setSelectedArticle(featuredArticle)} className="mb-16 animate-in fade-in duration-500 cursor-pointer group">
+                    {featuredArticle.imageUrl ? (
+                      <img 
+                        src={featuredArticle.imageUrl} 
+                        alt={featuredArticle.title}
+                        className="w-full h-64 md:h-96 object-cover mb-6 border-4 grayscale group-hover:grayscale-0 transition-all duration-500 shadow-xl"
+                        style={{ borderColor: activeTheme.primary }}
+                      />
+                    ) : (
+                      <div className="w-full h-64 md:h-96 mb-6 flex items-center justify-center border-4 shadow-xl group-hover:bg-black/10 transition-colors" style={{ backgroundColor: `${activeTheme.primary}20`, borderColor: activeTheme.primary }}>
+                        <div className="text-center" style={{ color: activeTheme.primary }}>
+                          <ImageIcon size={64} className="mx-auto mb-4 opacity-80" />
+                          <p className="font-bold uppercase tracking-widest opacity-80">[ ARCHIVAL WOODCUT ]</p>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <h2 className="text-4xl md:text-6xl font-black uppercase leading-none mb-4 tracking-tight group-hover:underline">{featuredArticle.title}</h2>
+                    <div className="flex items-center gap-4 mb-6 text-sm font-bold uppercase tracking-wider" style={{ color: activeTheme.primary }}>
+                      <span onClick={(e) => { e.stopPropagation(); setActiveCategory(featuredArticle.category); }} className="cursor-pointer hover:underline">{featuredArticle.category}</span>
+                      <span>•</span>
+                      <span>{featuredArticle.date}</span>
+                    </div>
+                    <p className="text-xl leading-relaxed font-medium whitespace-pre-wrap">{featuredArticle.excerpt}</p>
+                  </article>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-4 pt-8" style={{ borderColor: activeTheme.text }}>
+                  {otherArticles.map(article => (
+                    <article key={article.id} onClick={() => setSelectedArticle(article)} className="group cursor-pointer">
+                      {article.imageUrl && (
+                        <img 
+                          src={article.imageUrl} 
+                          alt={article.title}
+                          className="w-full h-40 object-cover mb-4 border-2 grayscale group-hover:grayscale-0 transition-all duration-500"
+                          style={{ borderColor: activeTheme.text }}
+                        />
+                      )}
+                      <h3 className="text-2xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
+                      <div className="text-xs font-bold uppercase tracking-wider mb-3 opacity-70" style={{ color: activeTheme.primary }}>{article.category}</div>
+                      <p className="leading-snug line-clamp-3">{article.excerpt}</p>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
+          </main>
+
+          <aside className="lg:col-span-4 space-y-12">
+            <div className="p-6 border-4 shadow-[8px_8px_0px_0px] transition-all hover:shadow-[12px_12px_0px_0px]" style={{ borderColor: activeTheme.text, shadowColor: activeTheme.primary, backgroundColor: activeTheme.background }}>
+              <h3 className="text-2xl font-black uppercase mb-4 border-b-2 pb-2" style={{ borderColor: activeTheme.text }}>
+                {identity.aboutTitle || "The Program"}
+              </h3>
+              <div className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{identity.aboutText}</div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <footer className="mt-20 py-8 border-t-4 text-center group" style={{ borderColor: activeTheme.text }}>
+        <button 
+          onClick={onSecretLogin}
+          className="text-xs font-mono uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-500 cursor-pointer"
+          style={{ color: activeTheme.text }}
+        >
+           [ TERMINAL ACCESS ] 
+        </button>
+      </footer>
+    </div>
+  );
+}icles = sortedArticles.filter(a => a.category === activeCategory);
 
   // FULL ARTICLE VIEW
   if (selectedArticle) {
@@ -421,7 +633,6 @@ function PublicSite({ config, articles, onSecretLogin }) {
       </footer>
     </div>
   );
-}
 
 // --- ADMIN DASHBOARD COMPONENT ---
 function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, onReturnPublic }) {
