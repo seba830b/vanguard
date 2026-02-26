@@ -17,11 +17,11 @@ import {
 // --- INITIAL DEFAULT DATA ---
 const DEFAULT_CONFIG = {
   identity: {
-    siteName: "The vanguard",
+    siteName: "the vanguard",
     tagline: "Voice of the Red Commune",
     mastheadDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     aboutTitle: "The Program",
-    aboutText: "We are the vanguard. Our mission is to dismantle the archaic structures of capital and forge a new paradigm of collective ownership.\n\n1. Abolition of private property.\n2. Heavy progressive income tax.\n3. Centralization of credit."
+    aboutText: "Welcome to The Vanguard. Our mission is to bridge the gap between complex theory and everyday life by creating a space that is as intellectually stimulating as it is engaging."
   },
   theme: { primary: "#990000", accent: "#FFD700", background: "#FDFBF7", text: "#222222", fontFamily: "serif" },
   categories: ["Current Struggle", "Theory & Education", "International", "The Archives"],
