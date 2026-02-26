@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useAuth, useClerk, UserButton } from "@clerk/clerk-react";
 
+// --- MOCK CLERK COMPONENTS (DELETE THIS ENTIRE SECTION IN YOUR APP) ---
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -43,16 +44,21 @@ const INITIAL_ARTICLES = [
 ];
 
 // --- ENVIRONMENT VARIABLES (Vite Pattern) ---
-// Using fallback checks to ensure local builds don't crash if a variable is missing
-const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
+// Note: Safe fallback accessors prevent immediate crashes in restrictive environments.
+const getEnv = (key) => {
+  try { return import.meta.env[key] || ""; } 
+  catch (e) { return ""; }
+};
+
+const CLERK_KEY = getEnv("VITE_CLERK_PUBLISHABLE_KEY");
 
 const fbConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
+  apiKey: getEnv("VITE_FIREBASE_API_KEY"),
+  authDomain: getEnv("VITE_FIREBASE_AUTH_DOMAIN"),
+  projectId: getEnv("VITE_FIREBASE_PROJECT_ID"),
+  storageBucket: getEnv("VITE_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: getEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: getEnv("VITE_FIREBASE_APP_ID")
 };
 
 // --- MAIN APPLICATION COMPONENT ---
@@ -99,24 +105,28 @@ function VanguardApp() {
   useEffect(() => {
     if (!fbConfig.apiKey) return;
     
-    const app = initializeApp(fbConfig);
-    const auth = getAuth(app);
-    const database = getFirestore(app);
-    setDb(database);
+    try {
+      const app = initializeApp(fbConfig);
+      const auth = getAuth(app);
+      const database = getFirestore(app);
+      setDb(database);
 
-    const initAuth = async () => {
-      try {
-        await signInAnonymously(auth);
-      } catch (e) {
-        console.error("Firebase auth error:", e);
-      }
-    };
-    
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-       setFbUser(user);
-    });
-    return () => unsubscribe();
+      const initAuth = async () => {
+        try {
+          await signInAnonymously(auth);
+        } catch (e) {
+          console.error("Firebase auth error:", e);
+        }
+      };
+      
+      initAuth();
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+         setFbUser(user);
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.error("Firebase Initialization Error:", e);
+    }
   }, []);
 
   // Sync Live Cloud Data
@@ -124,8 +134,8 @@ function VanguardApp() {
     if (!fbUser || !db) return;
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
-    const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config');
-    const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles');
+    const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
+    const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles', 'main');
 
     const unsubConfig = onSnapshot(configRef, (snap) => {
       if (snap.exists()) {
@@ -392,8 +402,8 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
     if (!db || !fbUser) return;
     try {
       const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
-      const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config');
-      const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles');
+      const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
+      const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles', 'main');
       
       await setDoc(configRef, config);
       await setDoc(articlesRef, { items: articles });
