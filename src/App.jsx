@@ -44,7 +44,7 @@ const INITIAL_ARTICLES = [
   }
 ];
 
-// --- ENVIRONMENT VARIABLES (Vite Pattern) ---
+// --- ENVIRONMENT VARIABLES ---
 const getEnv = (key) => {
   try { return import.meta.env[key] || ""; } 
   catch (e) { return ""; }
@@ -94,14 +94,12 @@ function VanguardApp() {
   const [view, setView] = useState('public'); 
   const { isLoaded: isClerkLoaded } = useAuth();
 
-  // Database States
   const [db, setDb] = useState(null);
   const [fbUser, setFbUser] = useState(null);
   const [isDbReady, setIsDbReady] = useState(false);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [articles, setArticles] = useState(INITIAL_ARTICLES);
 
-  // Initialize Firebase Connection
   useEffect(() => {
     if (!fbConfig.apiKey) return;
     
@@ -129,7 +127,6 @@ function VanguardApp() {
     }
   }, []);
 
-  // Sync Live Cloud Data
   useEffect(() => {
     const fallbackTimer = setTimeout(() => {
       setIsDbReady(true);
@@ -228,16 +225,15 @@ function VanguardApp() {
 }
 
 // --- PUBLIC SITE COMPONENT ---
-// --- PUBLIC SITE COMPONENT ---
 function PublicSite({ config, articles, onSecretLogin }) {
   const { identity, theme, categories } = config;
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedArticle, setSelectedArticle] = useState(null);
   
-  // NEW: Dark Mode State
+  // Dark Mode State
   const [isDarkMode, setIsDarkMode] = useState(false);
 
-  // NEW: Computed Theme (Swaps colors if dark mode is active)
+  // Computed Theme (Swaps colors if dark mode is active)
   const activeTheme = isDarkMode 
     ? { ...theme, background: '#121212', text: '#e5e5e5' } 
     : theme;
@@ -249,7 +245,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
   const otherArticles = sortedArticles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
   const categoryArticles = sortedArticles.filter(a => a.category === activeCategory);
 
-  // NEW: Floating Dark Mode Toggle Button
+  // Floating Dark Mode Toggle Button
   const DarkModeToggle = () => (
     <button 
       onClick={() => setIsDarkMode(!isDarkMode)}
@@ -449,190 +445,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
       </footer>
     </div>
   );
-}icles = sortedArticles.filter(a => a.category === activeCategory);
-
-  // FULL ARTICLE VIEW
-  if (selectedArticle) {
-    return (
-      <div className="min-h-screen flex flex-col selection:bg-red-900 selection:text-white" style={{ backgroundColor: theme.background, color: theme.text, fontFamily: theme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
-        <div className="w-full text-center py-1 text-xs tracking-widest uppercase font-bold text-white mb-8" style={{ backgroundColor: theme.primary }}>
-          Workers of the world, unite!
-        </div>
-        
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 flex-1 w-full pb-20">
-          <button 
-            onClick={() => setSelectedArticle(null)}
-            className="mb-8 flex items-center gap-2 text-sm font-bold uppercase tracking-widest hover:underline cursor-pointer"
-            style={{ color: theme.primary }}
-          >
-            <ChevronLeft size={16} /> Return to Dispatches
-          </button>
-
-          <article className="animate-in fade-in duration-500">
-            {selectedArticle.imageUrl && (
-              <img 
-                src={selectedArticle.imageUrl} 
-                alt={selectedArticle.title}
-                className="w-full h-64 md:h-[50vh] object-cover mb-8 border-4 grayscale hover:grayscale-0 transition-all duration-500 shadow-xl"
-                style={{ borderColor: theme.text }}
-              />
-            )}
-            <div className="flex items-center gap-4 mb-4 text-sm font-bold uppercase tracking-wider" style={{ color: theme.primary }}>
-              <span>{selectedArticle.category}</span>
-              <span>•</span>
-              <span>{selectedArticle.date}</span>
-            </div>
-            <h1 className="text-5xl md:text-7xl font-black uppercase leading-tight mb-8 tracking-tighter">
-              {selectedArticle.title}
-            </h1>
-            
-            <div className="text-xl md:text-2xl leading-relaxed whitespace-pre-wrap font-medium">
-              {selectedArticle.content || selectedArticle.excerpt}
-            </div>
-          </article>
-        </div>
-      </div>
-    );
-  }
-
-  // STANDARD GRID VIEW
-  return (
-    <div className="min-h-screen flex flex-col selection:bg-red-900 selection:text-white" style={{ backgroundColor: theme.background, color: theme.text, fontFamily: theme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
-      <div className="w-full text-center py-1 text-xs tracking-widest uppercase font-bold text-white" style={{ backgroundColor: theme.primary }}>
-        Workers of the world, unite!
-      </div>
-      
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-1 w-full">
-        <header className="py-8 border-b-8 mb-8" style={{ borderColor: theme.text }}>
-          <div className="flex justify-between items-end border-b-2 pb-2 mb-4" style={{ borderColor: theme.text }}>
-            <span className="text-sm font-bold uppercase tracking-wider">{todayDate}</span>
-            <span className="text-sm font-bold uppercase tracking-wider">Issue No. 48</span>
-          </div>
-          <h1 
-            onClick={() => setActiveCategory(null)}
-            className="text-6xl md:text-8xl lg:text-9xl font-black text-center uppercase tracking-tighter leading-none mb-4 cursor-pointer hover:opacity-90 transition-opacity" 
-            style={{ color: theme.primary }}
-          >
-            {identity.siteName}
-          </h1>
-          <p className="text-center text-xl md:text-2xl italic font-semibold border-t-2 pt-4" style={{ borderColor: theme.text }}>{identity.tagline}</p>
-        </header>
-
-        <nav className="border-y-4 py-3 mb-12 flex flex-wrap justify-center gap-6 md:gap-12" style={{ borderColor: theme.text }}>
-          {categories.map((cat, idx) => (
-            <span 
-              key={idx} 
-              onClick={() => setActiveCategory(cat)}
-              className={`uppercase font-bold tracking-widest text-sm hover:underline cursor-pointer transition-colors ${activeCategory === cat ? 'underline' : 'opacity-80 hover:opacity-100'}`}
-              style={{ color: activeCategory === cat ? theme.primary : theme.text }}
-            >
-              {cat}
-            </span>
-          ))}
-        </nav>
-
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
-          <main className="lg:col-span-8">
-            {activeCategory ? (
-              <div className="mb-16 animate-in fade-in duration-500">
-                <h2 className="text-4xl md:text-5xl font-black uppercase mb-8 border-b-4 pb-2" style={{ borderColor: theme.text }}>
-                  Dispatch: {activeCategory}
-                </h2>
-                <div className="space-y-12">
-                  {categoryArticles.length > 0 ? (
-                    categoryArticles.map(article => (
-                      <article key={article.id} onClick={() => setSelectedArticle(article)} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: theme.text }}>
-                        {article.imageUrl && (
-                          <img 
-                            src={article.imageUrl} 
-                            alt={article.title}
-                            className="w-full h-64 object-cover mb-4 border-4 grayscale hover:grayscale-0 transition-all duration-500"
-                            style={{ borderColor: theme.text }}
-                          />
-                        )}
-                        <h3 className="text-3xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                        <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70">{article.date}</div>
-                        <p className="leading-relaxed text-lg whitespace-pre-wrap">{article.excerpt}</p>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="text-xl italic font-medium opacity-70">No dispatches filed under this category yet.</p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <>
-                {featuredArticle && (
-                  <article onClick={() => setSelectedArticle(featuredArticle)} className="mb-16 animate-in fade-in duration-500 cursor-pointer group">
-                    {featuredArticle.imageUrl ? (
-                      <img 
-                        src={featuredArticle.imageUrl} 
-                        alt={featuredArticle.title}
-                        className="w-full h-64 md:h-96 object-cover mb-6 border-4 grayscale group-hover:grayscale-0 transition-all duration-500 shadow-xl"
-                        style={{ borderColor: theme.primary }}
-                      />
-                    ) : (
-                      <div className="w-full h-64 md:h-96 mb-6 flex items-center justify-center border-4 shadow-xl group-hover:bg-red-50 transition-colors" style={{ backgroundColor: `${theme.primary}20`, borderColor: theme.primary, mixBlendMode: 'multiply' }}>
-                        <div className="text-center" style={{ color: theme.primary }}>
-                          <ImageIcon size={64} className="mx-auto mb-4 opacity-80" />
-                          <p className="font-bold uppercase tracking-widest opacity-80">[ ARCHIVAL WOODCUT ]</p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <h2 className="text-4xl md:text-6xl font-black uppercase leading-none mb-4 tracking-tight group-hover:underline">{featuredArticle.title}</h2>
-                    <div className="flex items-center gap-4 mb-6 text-sm font-bold uppercase tracking-wider" style={{ color: theme.primary }}>
-                      <span onClick={(e) => { e.stopPropagation(); setActiveCategory(featuredArticle.category); }} className="cursor-pointer hover:underline">{featuredArticle.category}</span>
-                      <span>•</span>
-                      <span>{featuredArticle.date}</span>
-                    </div>
-                    <p className="text-xl leading-relaxed font-medium whitespace-pre-wrap">{featuredArticle.excerpt}</p>
-                  </article>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-4 pt-8" style={{ borderColor: theme.text }}>
-                  {otherArticles.map(article => (
-                    <article key={article.id} onClick={() => setSelectedArticle(article)} className="group cursor-pointer">
-                      {article.imageUrl && (
-                        <img 
-                          src={article.imageUrl} 
-                          alt={article.title}
-                          className="w-full h-40 object-cover mb-4 border-2 grayscale group-hover:grayscale-0 transition-all duration-500"
-                          style={{ borderColor: theme.text }}
-                        />
-                      )}
-                      <h3 className="text-2xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                      <div className="text-xs font-bold uppercase tracking-wider mb-3 opacity-70" style={{ color: theme.primary }}>{article.category}</div>
-                      <p className="leading-snug line-clamp-3">{article.excerpt}</p>
-                    </article>
-                  ))}
-                </div>
-              </>
-            )}
-          </main>
-
-          <aside className="lg:col-span-4 space-y-12">
-            <div className="p-6 border-4 shadow-[8px_8px_0px_0px] transition-all hover:shadow-[12px_12px_0px_0px]" style={{ borderColor: theme.text, shadowColor: theme.primary, backgroundColor: theme.background }}>
-              <h3 className="text-2xl font-black uppercase mb-4 border-b-2 pb-2" style={{ borderColor: theme.text }}>
-                {identity.aboutTitle || "The Program"}
-              </h3>
-              <div className="whitespace-pre-wrap text-sm leading-relaxed font-medium">{identity.aboutText}</div>
-            </div>
-          </aside>
-        </div>
-      </div>
-
-      <footer className="mt-20 py-8 border-t-4 text-center group" style={{ borderColor: theme.text }}>
-        <button 
-          onClick={onSecretLogin}
-          className="text-xs font-mono uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-500 cursor-pointer"
-          style={{ color: theme.text }}
-        >
-           [ TERMINAL ACCESS ] 
-        </button>
-      </footer>
-    </div>
-  );
+}
 
 // --- ADMIN DASHBOARD COMPONENT ---
 function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, onReturnPublic }) {
