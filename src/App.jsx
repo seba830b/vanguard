@@ -425,7 +425,83 @@ function AdminDashboard({ config, setConfig, articles, setArticles, onReturnPubl
                 ))}
               </section>
             )}
-            {/* Other tabs follow similar immutable patterns... */}
+{/* ANALYTICS TAB */}
+{activeTab === 'analytics' && (
+  <section className="space-y-6">
+    <div className="border-b border-gray-800 pb-4">
+      <h3 className="text-2xl font-bold text-white">Reader Analytics</h3>
+      <p className="text-sm text-gray-400 mt-1">
+        Overview of dispatch circulation and reader engagement. 
+        <span className="text-red-400 ml-2">(Currently displaying simulated dashboard data)</span>
+      </p>
+    </div>
+    
+    {/* Top Metrics Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 shadow-md">
+        <div className="flex justify-between items-start mb-2">
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Unique Readers</div>
+          <Users size={16} className="text-gray-600" />
+        </div>
+        <div className="text-4xl font-black text-white">14,204</div>
+        <div className="text-green-500 text-sm mt-2 font-mono text-xs">↑ +12.5% from last week</div>
+      </div>
+      
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 shadow-md">
+        <div className="flex justify-between items-start mb-2">
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Avg. Read Time</div>
+          <Eye size={16} className="text-gray-600" />
+        </div>
+        <div className="text-4xl font-black text-white">4m 12s</div>
+        <div className="text-red-500 text-sm mt-2 font-mono text-xs">↓ -2.1% from last week</div>
+      </div>
+      
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 shadow-md border-t-4 border-t-red-600">
+        <div className="flex justify-between items-start mb-2">
+          <div className="text-gray-500 text-xs font-bold uppercase tracking-wider">Top Category</div>
+          <FileText size={16} className="text-red-900" />
+        </div>
+        <div className="text-2xl font-black text-white mt-3 leading-tight">Current Struggle</div>
+      </div>
+    </div>
+
+    {/* Top Performing Articles List */}
+    <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden shadow-md">
+      <div className="bg-gray-800/50 border-b border-gray-800 p-4">
+        <h4 className="text-white font-bold uppercase text-sm tracking-wider">Top Performing Dispatches</h4>
+      </div>
+      <div className="p-0">
+        <table className="w-full text-left text-sm text-gray-400">
+          <thead className="bg-gray-950/50 text-xs uppercase text-gray-500 border-b border-gray-800">
+            <tr>
+              <th className="px-6 py-3 font-medium">Article Title</th>
+              <th className="px-6 py-3 font-medium text-right">Views</th>
+              <th className="px-6 py-3 font-medium text-right">Completion Rate</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-800">
+            {articles.slice(0, 4).map((a, i) => (
+              <tr key={i} className="hover:bg-gray-800/20 transition-colors">
+                <td className="px-6 py-4 font-medium text-gray-200 truncate max-w-xs">{a.title || 'Untitled Draft'}</td>
+                <td className="px-6 py-4 font-mono text-right">{Math.floor(8000 / (i + 1) + Math.random() * 500)}</td>
+                <td className="px-6 py-4 font-mono text-right">
+                  <span className={i === 0 ? "text-green-400" : "text-gray-400"}>
+                    {Math.floor(85 - (i * 12))}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {articles.length === 0 && (
+              <tr>
+                <td colSpan="3" className="px-6 py-8 text-center text-gray-600 italic">No articles published yet.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+)}
           </div>
         </div>
       </main>
