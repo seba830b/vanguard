@@ -10,7 +10,7 @@ import {
 // --- INITIAL DEFAULT DATA ---
 const DEFAULT_CONFIG = {
   identity: {
-    siteName: "The Vanguard Dispatch",
+    siteName: "what you need me to do",
     tagline: "Voice of the Red Commune",
     mastheadDate: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     aboutTitle: "The Program",
@@ -48,7 +48,15 @@ const INITIAL_ARTICLES = [
 
 // --- MAIN APPLICATION COMPONENT ---
 export default function AppWrapper() {
-  const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const getPublishableKey = () => {
+    try {
+      return import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const PUBLISHABLE_KEY = getPublishableKey();
 
   if (!PUBLISHABLE_KEY) {
     return (
