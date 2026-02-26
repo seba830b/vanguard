@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useAuth, useClerk, UserButton } from "@clerk/clerk-react";
 
-// --- MOCK CLERK COMPONENTS (DELETE THIS ENTIRE SECTION IN YOUR APP) ---
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -131,6 +130,13 @@ function VanguardApp() {
 
   // Sync Live Cloud Data
   useEffect(() => {
+    // 1. SAFETY TIMEOUT: If Firebase takes longer than 2.5 seconds to load (due to ad blockers or slow networks), 
+    // force the loading screen to drop so the user can at least see the offline site.
+    const fallbackTimer = setTimeout(() => {
+      setIsDbReady(true);
+    }, 2500);
+
+    // 2. Await full initialization
     if (!fbUser || !db) return;
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
@@ -138,6 +144,7 @@ function VanguardApp() {
     const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles', 'main');
 
     const unsubConfig = onSnapshot(configRef, (snap) => {
+      clearTimeout(fallbackTimer); // Clear timer because we successfully connected!
       if (snap.exists()) {
         const cloudConfig = snap.data();
         setConfig({
@@ -149,8 +156,12 @@ function VanguardApp() {
           team: cloudConfig?.team || DEFAULT_CONFIG.team
         });
       }
-      setIsDbReady(true);
-    }, (err) => console.error("Config Sync Error:", err));
+      setIsDbReady(true); // Drop loading screen
+    }, (err) => {
+      clearTimeout(fallbackTimer);
+      console.error("Config Sync Error:", err);
+      setIsDbReady(true); // Force drop loading screen on error
+    });
 
     const unsubArticles = onSnapshot(articlesRef, (snap) => {
       if (snap.exists() && snap.data().items) {
@@ -158,7 +169,11 @@ function VanguardApp() {
       }
     }, (err) => console.error("Article Sync Error:", err));
 
-    return () => { unsubConfig(); unsubArticles(); };
+    return () => { 
+      clearTimeout(fallbackTimer);
+      unsubConfig(); 
+      unsubArticles(); 
+    };
   }, [fbUser, db]);
 
   return (
