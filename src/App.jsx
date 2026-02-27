@@ -459,21 +459,36 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('moderator');
 
-  const userEmail = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
+ const userEmail = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
   
   // ==========================================
-  // COMPLETELY UNLOCKED ADMIN ACCESS
+  // SECURE ROLE-BASED ACCESS
   // ==========================================
-  const isAdmin = true; 
-  const roleName = 'Admin';
+  // Put your exact login email here:
+  const MASTER_EMAIL = "bassenogmusen@gmail.com"; 
 
+  const configTeam = config.team || [];
+  const teamMember = configTeam.find(m => m.email.toLowerCase() === userEmail);
+  
+  // You are an Admin if you are the Master Email OR if you were granted 'admin' in the Access Control tab
+  const isAdmin = userEmail === MASTER_EMAIL || (teamMember && teamMember.role === 'admin');
+  const roleName = isAdmin ? 'Admin' : 'Moderator';
+
+  // Only Admins can see Identity, Theme, and Team tabs
   const tabs = [
-    { id: 'identity', label: 'Identity Settings', icon: Settings },
-    { id: 'content', label: 'Article Manager', icon: FileText },
-    { id: 'theme', label: 'Theme Architecture', icon: Palette },
-    { id: 'team', label: 'Access Control', icon: Users },
-    { id: 'analytics', label: 'Reader Analytics', icon: BarChart },
-  ];
+    { id: 'identity', label: 'Identity Settings', icon: Settings, requireAdmin: true },
+    { id: 'content', label: 'Article Manager', icon: FileText, requireAdmin: false },
+    { id: 'theme', label: 'Theme Architecture', icon: Palette, requireAdmin: true },
+    { id: 'team', label: 'Access Control', icon: Users, requireAdmin: true },
+    { id: 'analytics', label: 'Reader Analytics', icon: BarChart, requireAdmin: false },
+  ].filter(tab => !tab.requireAdmin || isAdmin);
+  
+  // Ensure non-admins don't accidentally load onto a restricted tab
+  useEffect(() => {
+    if (!isAdmin && ['identity', 'theme', 'team'].includes(activeTab)) {
+      setActiveTab('content');
+    }
+  }, [isAdmin, activeTab]);
 
   const handleSave = async () => {
     if (!db) {
