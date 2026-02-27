@@ -345,7 +345,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
         <header className="py-8 border-b-8 mb-8" style={{ borderColor: activeTheme.text }}>
           <div className="flex justify-between items-end border-b-2 pb-2 mb-4" style={{ borderColor: activeTheme.text }}>
             <span className="text-sm font-bold uppercase tracking-wider">{todayDate}</span>
-            <span className="text-sm font-bold uppercase tracking-wider">Issue No. 48</span>
+            <span className="text-sm font-bold uppercase tracking-wider">Issue No. 1</span>
           </div>
           <h1 
             onClick={() => setActiveCategory(null)}
