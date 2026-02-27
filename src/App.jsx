@@ -190,14 +190,16 @@ function VanguardApp() {
     };
   }, [fbUser, db]);
 
-  const logRead = async (category) => {
+const logRead = async (category) => {
     if (!db) return;
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
     const analyticsRef = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'main');
     try {
       await setDoc(analyticsRef, {
         totalReads: increment(1),
-        [`categoryReads.${category}`]: increment(1)
+        categoryReads: {
+          [category]: increment(1) // <-- FIXED: This properly nests the stat!
+        }
       }, { merge: true });
     } catch (e) {
       console.error("Failed to log read:", e);
