@@ -11,7 +11,7 @@ import {
   FileText, ChevronRight, CheckCircle,
   Image as ImageIcon, Eye, Edit3, Link as LinkIcon,
   Plus, Trash2, Users, BarChart, ChevronLeft,
-  Moon, Sun
+  Moon, Sun, Search
 } from 'lucide-react';
 
 // --- INITIAL DEFAULT DATA ---
@@ -24,7 +24,7 @@ const DEFAULT_CONFIG = {
     aboutText: "We are the vanguard. Our mission is to dismantle the archaic structures of capital and forge a new paradigm of collective ownership.\n\n1. Abolition of private property.\n2. Heavy progressive income tax.\n3. Centralization of credit."
   },
   theme: { primary: "#990000", accent: "#FFD700", background: "#FDFBF7", text: "#222222", fontFamily: "serif" },
-  categories: ["Current Struggle", "Theory & Education", "International", "The Archives"],
+  categories: ["Current Struggle", "Theory & Education", "International", "The Archives", "Non-Marxist"],
   integrations: { dbEndpoint: "Firebase Sync Active", apiWebhook: "https://api.redcommune.org/publish", cliToken: "rc_sec_8f92a" },
   team: [
     { email: "admin@vanguard.org", role: "admin" }
@@ -35,7 +35,9 @@ const INITIAL_ARTICLES = [
   { 
     id: 1, 
     title: "Database Initialized", 
+    author: "The Vanguard Editorial",
     category: "The Archives", 
+    tags: "announcement, update",
     excerpt: "The Vanguard cloud databank is active. Dispatches will now sync globally.", 
     content: "The Vanguard cloud databank is active. Dispatches will now sync globally.\n\nThis is the full text of the article where you can expand upon the theories, current struggles, and international news. Workers of the world, unite!",
     date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
@@ -229,6 +231,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
   const { identity, theme, categories } = config;
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedArticle, setSelectedArticle] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Dark Mode State
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -241,9 +244,22 @@ function PublicSite({ config, articles, onSecretLogin }) {
   const todayDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const sortedArticles = [...(articles || [])].sort((a, b) => b.id - a.id);
 
-  const featuredArticle = sortedArticles.find(a => a.featured) || sortedArticles[0] || null;
-  const otherArticles = sortedArticles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
-  const categoryArticles = sortedArticles.filter(a => a.category === activeCategory);
+  // Search Filter
+  const searchLower = searchQuery.toLowerCase();
+  const searchedArticles = sortedArticles.filter(a => {
+    if (!searchQuery) return true;
+    return (
+      (a.title?.toLowerCase().includes(searchLower)) ||
+      (a.excerpt?.toLowerCase().includes(searchLower)) ||
+      (a.content?.toLowerCase().includes(searchLower)) ||
+      (a.author?.toLowerCase().includes(searchLower)) ||
+      (a.tags?.toLowerCase().includes(searchLower))
+    );
+  });
+
+  const featuredArticle = searchedArticles.find(a => a.featured) || searchedArticles[0] || null;
+  const otherArticles = searchedArticles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
+  const categoryArticles = searchedArticles.filter(a => a.category === activeCategory);
 
   // Floating Dark Mode Toggle Button
   const DarkModeToggle = () => (
@@ -291,8 +307,19 @@ function PublicSite({ config, articles, onSecretLogin }) {
             <div className="flex items-center gap-4 mb-4 text-sm font-bold uppercase tracking-wider" style={{ color: activeTheme.primary }}>
               <span>{selectedArticle.category}</span>
               <span>•</span>
+              <span>By {selectedArticle.author || "Anonymous"}</span>
+              <span>•</span>
               <span>{selectedArticle.date}</span>
             </div>
+            {selectedArticle.tags && (
+              <div className="flex flex-wrap gap-2 mb-8">
+                {selectedArticle.tags.split(',').map((tag, i) => (
+                  <span key={i} className="text-xs uppercase tracking-widest px-3 py-1 border rounded-full opacity-70" style={{ borderColor: activeTheme.text }}>
+                    {tag.trim()}
+                  </span>
+                ))}
+              </div>
+            )}
             <h1 className="text-5xl md:text-7xl font-black uppercase leading-tight mb-8 tracking-tighter">
               {selectedArticle.title}
             </h1>
@@ -330,22 +357,39 @@ function PublicSite({ config, articles, onSecretLogin }) {
           <p className="text-center text-xl md:text-2xl italic font-semibold border-t-2 pt-4" style={{ borderColor: activeTheme.text }}>{identity.tagline}</p>
         </header>
 
-        <nav className="border-y-4 py-3 mb-12 flex flex-wrap justify-center gap-6 md:gap-12" style={{ borderColor: activeTheme.text }}>
+        <nav className="border-y-4 py-3 flex flex-wrap justify-center gap-6 md:gap-12" style={{ borderColor: activeTheme.text }}>
           {categories.map((cat, idx) => (
             <span 
               key={idx} 
-              onClick={() => setActiveCategory(cat)}
-              className={`uppercase font-bold tracking-widest text-sm hover:underline cursor-pointer transition-colors ${activeCategory === cat ? 'underline' : 'opacity-80 hover:opacity-100'}`}
-              style={{ color: activeCategory === cat ? activeTheme.primary : activeTheme.text }}
+              onClick={() => { setActiveCategory(cat); setSearchQuery(''); }}
+              className={`uppercase font-bold tracking-widest text-sm hover:underline cursor-pointer transition-colors ${activeCategory === cat && !searchQuery ? 'underline' : 'opacity-80 hover:opacity-100'}`}
+              style={{ color: activeCategory === cat && !searchQuery ? activeTheme.primary : activeTheme.text }}
             >
               {cat}
             </span>
           ))}
         </nav>
 
+        {/* Global Search Bar */}
+        <div className="flex justify-center mb-12 mt-6">
+           <div className="relative w-full max-w-xl">
+             <input
+               type="text"
+               placeholder="Search dispatches, authors, or genres..."
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
+               className="w-full bg-transparent border-b-2 px-4 py-3 outline-none transition-colors"
+               style={{ borderColor: activeTheme.text, color: activeTheme.text }}
+             />
+             <div className="absolute right-3 top-3 opacity-50">
+               <Search size={24} />
+             </div>
+           </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
           <main className="lg:col-span-8">
-            {activeCategory ? (
+            {activeCategory && !searchQuery ? (
               <div className="mb-16 animate-in fade-in duration-500">
                 <h2 className="text-4xl md:text-5xl font-black uppercase mb-8 border-b-4 pb-2" style={{ borderColor: activeTheme.text }}>
                   Dispatch: {activeCategory}
@@ -363,7 +407,16 @@ function PublicSite({ config, articles, onSecretLogin }) {
                           />
                         )}
                         <h3 className="text-3xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                        <div className="text-xs font-bold uppercase tracking-wider mb-4 opacity-70">{article.date}</div>
+                        <div className="text-xs font-bold uppercase tracking-wider mb-2 opacity-70">By {article.author || "Anonymous"} • {article.date}</div>
+                        {article.tags && (
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {article.tags.split(',').map((tag, i) => (
+                              <span key={i} className="text-[9px] uppercase tracking-widest px-2 py-0.5 border rounded-full opacity-70" style={{ borderColor: activeTheme.text }}>
+                                {tag.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
                         <p className="leading-relaxed text-lg whitespace-pre-wrap">{article.excerpt}</p>
                       </article>
                     ))
@@ -374,7 +427,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
               </div>
             ) : (
               <>
-                {featuredArticle && (
+                {featuredArticle && !searchQuery && (
                   <article onClick={() => setSelectedArticle(featuredArticle)} className="mb-16 animate-in fade-in duration-500 cursor-pointer group">
                     {featuredArticle.imageUrl ? (
                       <img 
@@ -393,31 +446,59 @@ function PublicSite({ config, articles, onSecretLogin }) {
                     )}
                     
                     <h2 className="text-4xl md:text-6xl font-black uppercase leading-none mb-4 tracking-tight group-hover:underline">{featuredArticle.title}</h2>
-                    <div className="flex items-center gap-4 mb-6 text-sm font-bold uppercase tracking-wider" style={{ color: activeTheme.primary }}>
+                    <div className="flex items-center gap-4 mb-3 text-sm font-bold uppercase tracking-wider" style={{ color: activeTheme.primary }}>
                       <span onClick={(e) => { e.stopPropagation(); setActiveCategory(featuredArticle.category); }} className="cursor-pointer hover:underline">{featuredArticle.category}</span>
+                      <span>•</span>
+                      <span>By {featuredArticle.author || "Anonymous"}</span>
                       <span>•</span>
                       <span>{featuredArticle.date}</span>
                     </div>
+                    {featuredArticle.tags && (
+                      <div className="flex flex-wrap gap-2 mb-6">
+                        {featuredArticle.tags.split(',').map((tag, i) => (
+                          <span key={i} className="text-[10px] uppercase tracking-widest px-2 py-0.5 border rounded-full opacity-70" style={{ borderColor: activeTheme.text }}>
+                            {tag.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <p className="text-xl leading-relaxed font-medium whitespace-pre-wrap">{featuredArticle.excerpt}</p>
                   </article>
                 )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-t-4 pt-8" style={{ borderColor: activeTheme.text }}>
-                  {otherArticles.map(article => (
-                    <article key={article.id} onClick={() => setSelectedArticle(article)} className="group cursor-pointer">
+                {searchQuery && <h3 className="text-2xl font-bold uppercase mb-6 opacity-50 border-b-2 pb-2" style={{ borderColor: activeTheme.text }}>Search Results</h3>}
+
+                <div className={`grid grid-cols-1 ${searchQuery ? 'md:grid-cols-1' : 'md:grid-cols-2'} gap-8 border-t-4 pt-8`} style={{ borderColor: activeTheme.text }}>
+                  {(searchQuery ? searchedArticles : otherArticles).map(article => (
+                    <article key={article.id} onClick={() => setSelectedArticle(article)} className={`group cursor-pointer ${searchQuery ? 'flex gap-6 items-center' : ''}`}>
                       {article.imageUrl && (
                         <img 
                           src={article.imageUrl} 
                           alt={article.title}
-                          className="w-full h-40 object-cover mb-4 border-2 grayscale group-hover:grayscale-0 transition-all duration-500"
+                          className={`${searchQuery ? 'w-48 h-32' : 'w-full h-40 mb-4'} object-cover border-2 grayscale group-hover:grayscale-0 transition-all duration-500`}
                           style={{ borderColor: activeTheme.text }}
                         />
                       )}
-                      <h3 className="text-2xl font-bold uppercase leading-tight mb-2 group-hover:underline">{article.title}</h3>
-                      <div className="text-xs font-bold uppercase tracking-wider mb-3 opacity-70" style={{ color: activeTheme.primary }}>{article.category}</div>
-                      <p className="leading-snug line-clamp-3">{article.excerpt}</p>
+                      <div>
+                        <h3 className={`${searchQuery ? 'text-3xl' : 'text-2xl'} font-bold uppercase leading-tight mb-2 group-hover:underline`}>{article.title}</h3>
+                        <div className="text-xs font-bold uppercase tracking-wider mb-1 opacity-70">By {article.author || "Anonymous"}</div>
+                        <div className="text-xs font-bold uppercase tracking-wider mb-2 opacity-70" style={{ color: activeTheme.primary }}>{article.category}</div>
+                        {article.tags && (
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {article.tags.split(',').map((tag, i) => (
+                              <span key={i} className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 border rounded-full opacity-70" style={{ borderColor: activeTheme.text }}>
+                                {tag.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <p className="leading-snug line-clamp-3">{article.excerpt}</p>
+                      </div>
                     </article>
                   ))}
+                  {searchQuery && searchedArticles.length === 0 && (
+                    <p className="text-xl italic opacity-50">No dispatches found matching "{searchQuery}".</p>
+                  )}
                 </div>
               </>
             )}
@@ -451,7 +532,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
 function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, onReturnPublic }) {
   const { user } = useUser();
   const { signOut } = useClerk();
-  const [activeTab, setActiveTab] = useState('identity'); // Default to Identity so you see it right away!
+  const [activeTab, setActiveTab] = useState('identity'); 
   const [savedStatus, setSavedStatus] = useState(false);
   
   const [previewStates, setPreviewStates] = useState({});
@@ -524,7 +605,9 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
     const newArticle = {
       id: Date.now(),
       title: "New Dispatch Draft",
+      author: user?.fullName || user?.primaryEmailAddress?.emailAddress?.split('@')[0] || "New Author",
       category: config.categories[0],
+      tags: "",
       excerpt: "Enter your short front-page TLDR here...",
       content: "Enter the full dispatch content here...",
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
@@ -609,7 +692,7 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-950/50">
           <div className="max-w-4xl mx-auto space-y-8 pb-32">
             
-            {/* IDENTITY TAB - Moved to the top so it's easy to find */}
+            {/* IDENTITY TAB */}
             {activeTab === 'identity' && (
               <section className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 <h3 className="text-2xl font-bold text-white border-b border-gray-800 pb-2">Global Identity</h3>
@@ -691,7 +774,10 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                         >
                           <div className="flex gap-4 items-center">
                             <span className="text-xs font-mono text-gray-500 bg-black/40 px-2 py-0.5 rounded shrink-0">#{article.id.toString().slice(-6)}</span>
-                            <span className="font-bold text-gray-200 truncate pr-4">{article.title || 'Untitled Dispatch'}</span>
+                            <span className="font-bold text-gray-200 truncate pr-4">
+                              {article.title || 'Untitled Dispatch'}
+                              <span className="ml-3 text-[10px] uppercase tracking-widest text-red-400 bg-red-900/20 px-2 py-0.5 rounded">By: {article.author || "Anonymous"}</span>
+                            </span>
                             
                             {isExpanded && (
                               <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-300 cursor-pointer hover:text-white transition-colors ml-4" onClick={(e) => e.stopPropagation()}>
@@ -750,24 +836,39 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                                 )}
                                 <h3 className="text-3xl md:text-4xl font-black uppercase mb-3 leading-tight tracking-tighter">{article.title || 'Untitled Dispatch'}</h3>
                                 <div className="text-xs font-bold uppercase tracking-widest mb-6 opacity-60 border-t pt-2 inline-block" style={{ color: config.theme.primary }}>
-                                  {article.category} • {article.date}
+                                  {article.category} • By {article.author || "Anonymous"} • {article.date}
                                 </div>
                                 <p className="whitespace-pre-wrap leading-relaxed text-lg">{article.content || article.excerpt || 'No content provided.'}</p>
                               </div>
                             ) : (
                               <div className="space-y-5">
-                                <div>
-                                  <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Dispatch Headline</label>
-                                  <input 
-                                    type="text" value={article.title}
-                                    placeholder="Enter headline..."
-                                    onChange={(e) => {
-                                      const newArticles = [...articles];
-                                      newArticles[index].title = e.target.value;
-                                      setArticles(newArticles);
-                                    }}
-                                    className="bg-gray-950 border border-gray-800 text-lg font-bold text-white w-full p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all"
-                                  />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Dispatch Headline</label>
+                                    <input 
+                                      type="text" value={article.title}
+                                      placeholder="Enter headline..."
+                                      onChange={(e) => {
+                                        const newArticles = [...articles];
+                                        newArticles[index].title = e.target.value;
+                                        setArticles(newArticles);
+                                      }}
+                                      className="bg-gray-950 border border-gray-800 text-lg font-bold text-white w-full p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Author Name</label>
+                                    <input 
+                                      type="text" value={article.author || ""}
+                                      placeholder="Author Name..."
+                                      onChange={(e) => {
+                                        const newArticles = [...articles];
+                                        newArticles[index].author = e.target.value;
+                                        setArticles(newArticles);
+                                      }}
+                                      className="bg-gray-950 border border-gray-800 text-lg font-bold text-white w-full p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-500/50 transition-all"
+                                    />
+                                  </div>
                                 </div>
                                 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -787,18 +888,32 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                                   </div>
                                   
                                   <div>
-                                    <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Featured Asset URL</label>
+                                    <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Genres / Tags (Comma separated)</label>
                                     <input 
-                                      type="url" value={article.imageUrl || ''}
-                                      placeholder="https://images.unsplash.com/..."
+                                      type="text" value={article.tags || ''}
+                                      placeholder="history, politics, news..."
                                       onChange={(e) => {
                                         const newArticles = [...articles];
-                                        newArticles[index].imageUrl = e.target.value;
+                                        newArticles[index].tags = e.target.value;
                                         setArticles(newArticles);
                                       }}
                                       className="bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm text-gray-300 w-full focus:outline-none focus:ring-1 focus:ring-red-500/50 font-mono"
                                     />
                                   </div>
+                                </div>
+
+                                <div>
+                                  <label className="block text-[10px] font-black uppercase text-gray-500 mb-1 tracking-widest">Featured Asset URL</label>
+                                  <input 
+                                    type="url" value={article.imageUrl || ''}
+                                    placeholder="https://images.unsplash.com/..."
+                                    onChange={(e) => {
+                                      const newArticles = [...articles];
+                                      newArticles[index].imageUrl = e.target.value;
+                                      setArticles(newArticles);
+                                    }}
+                                    className="bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm text-gray-300 w-full focus:outline-none focus:ring-1 focus:ring-red-500/50 font-mono"
+                                  />
                                 </div>
 
                                 <div>
