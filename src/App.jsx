@@ -4,7 +4,7 @@ import { ClerkProvider, SignIn, SignedIn, SignedOut, useUser, useAuth, useClerk,
 // Firebase Imports
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, increment } from 'firebase/firestore';
 
 import { 
   Settings, Terminal, Database, Palette, 
@@ -93,14 +93,21 @@ export default function AppWrapper() {
 }
 
 function VanguardApp() {
-  const [view, setView] = useState('public'); 
-  const { isLoaded: isClerkLoaded } = useAuth();
+  // UPGRADE: Uses localStorage so refreshing doesn't kick you out of the admin panel
+  const [view, setView] = useState(() => localStorage.getItem('vanguard_view') || 'public'); 
+  
+  const handleSetView = (newView) => {
+    localStorage.setItem('vanguard_view', newView);
+    setView(newView);
+  };
 
+  const { isLoaded: isClerkLoaded } = useAuth();
   const [db, setDb] = useState(null);
   const [fbUser, setFbUser] = useState(null);
   const [isDbReady, setIsDbReady] = useState(false);
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [articles, setArticles] = useState(INITIAL_ARTICLES);
+  const [analytics, setAnalytics] = useState({ totalReads: 0, categoryReads: {} }); 
 
   useEffect(() => {
     if (!fbConfig.apiKey) return;
@@ -139,6 +146,7 @@ function VanguardApp() {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
     const configRef = doc(db, 'artifacts', appId, 'public', 'data', 'config', 'main');
     const articlesRef = doc(db, 'artifacts', appId, 'public', 'data', 'articles', 'main');
+    const analyticsRef = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'main'); 
 
     const unsubConfig = onSnapshot(configRef, (snap) => {
       clearTimeout(fallbackTimer);
@@ -166,12 +174,35 @@ function VanguardApp() {
       }
     }, (err) => console.error("Article Sync Error:", err));
 
+    const unsubAnalytics = onSnapshot(analyticsRef, (snap) => {
+      if (snap.exists()) {
+        setAnalytics(snap.data());
+      } else {
+        setDoc(analyticsRef, { totalReads: 0, categoryReads: {} }, { merge: true });
+      }
+    }, (err) => console.error("Analytics Sync Error:", err));
+
     return () => { 
       clearTimeout(fallbackTimer);
       unsubConfig(); 
       unsubArticles(); 
+      unsubAnalytics();
     };
   }, [fbUser, db]);
+
+  const logRead = async (category) => {
+    if (!db) return;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
+    const analyticsRef = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'main');
+    try {
+      await setDoc(analyticsRef, {
+        totalReads: increment(1),
+        [`categoryReads.${category}`]: increment(1)
+      }, { merge: true });
+    } catch (e) {
+      console.error("Failed to log read:", e);
+    }
+  };
 
   return (
     <div className="min-h-screen relative font-sans transition-colors duration-300">
@@ -186,7 +217,8 @@ function VanguardApp() {
         <PublicSite 
           config={config} 
           articles={articles} 
-          onSecretLogin={() => setView('admin')} 
+          onSecretLogin={() => handleSetView('admin')} 
+          logRead={logRead}
         />
       )}
       
@@ -199,9 +231,10 @@ function VanguardApp() {
                 <h2 className="text-2xl text-white font-bold uppercase tracking-wider">Vanguard CMS Access</h2>
                 <p className="text-gray-400 text-sm mt-2 mb-6">Authorized personnel only.</p>
               </div>
-              <SignIn routing="hash" forceRedirectUrl="/" />
+              {/* UPGRADE: Removed forceRedirectUrl to prevent app refresh bug */}
+              <SignIn routing="hash" />
               <button 
-                onClick={() => setView('public')}
+                onClick={() => handleSetView('public')}
                 className="mt-8 text-gray-500 hover:text-white text-sm transition-colors font-mono"
               >
                 ← Return to Public Dispatch
@@ -217,7 +250,8 @@ function VanguardApp() {
               setConfig={setConfig}
               articles={articles}
               setArticles={setArticles}
-              onReturnPublic={() => setView('public')}
+              analytics={analytics} 
+              onReturnPublic={() => handleSetView('public')}
             />
           </SignedIn>
         </>
@@ -227,16 +261,23 @@ function VanguardApp() {
 }
 
 // --- PUBLIC SITE COMPONENT ---
-function PublicSite({ config, articles, onSecretLogin }) {
+function PublicSite({ config, articles, onSecretLogin, logRead }) {
   const { identity, theme, categories } = config;
   const [activeCategory, setActiveCategory] = useState(null);
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Dark Mode State
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  // UPGRADE: Uses localStorage to remember your dark mode setting permanently
+  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('vanguard_theme') === 'dark');
 
-  // Computed Theme (Swaps colors if dark mode is active)
+  const toggleDarkMode = () => {
+    setIsDarkMode(prev => {
+      const newVal = !prev;
+      localStorage.setItem('vanguard_theme', newVal ? 'dark' : 'light');
+      return newVal;
+    });
+  };
+
   const activeTheme = isDarkMode 
     ? { ...theme, background: '#121212', text: '#e5e5e5' } 
     : theme;
@@ -244,7 +285,6 @@ function PublicSite({ config, articles, onSecretLogin }) {
   const todayDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const sortedArticles = [...(articles || [])].sort((a, b) => b.id - a.id);
 
-  // Search Filter
   const searchLower = searchQuery.toLowerCase();
   const searchedArticles = sortedArticles.filter(a => {
     if (!searchQuery) return true;
@@ -261,10 +301,14 @@ function PublicSite({ config, articles, onSecretLogin }) {
   const otherArticles = searchedArticles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
   const categoryArticles = searchedArticles.filter(a => a.category === activeCategory);
 
-  // Floating Dark Mode Toggle Button
+  const handleArticleClick = (article) => {
+    setSelectedArticle(article);
+    if (logRead) logRead(article.category || 'Uncategorized');
+  };
+
   const DarkModeToggle = () => (
     <button 
-      onClick={() => setIsDarkMode(!isDarkMode)}
+      onClick={toggleDarkMode}
       className="fixed top-6 right-6 z-50 p-2.5 rounded-full border-2 shadow-lg transition-transform hover:scale-110 active:scale-95"
       style={{ 
         borderColor: activeTheme.text, 
@@ -277,7 +321,6 @@ function PublicSite({ config, articles, onSecretLogin }) {
     </button>
   );
 
-  // FULL ARTICLE VIEW
   if (selectedArticle) {
     return (
       <div className="min-h-screen flex flex-col selection:bg-red-900 selection:text-white transition-colors duration-500" style={{ backgroundColor: activeTheme.background, color: activeTheme.text, fontFamily: activeTheme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
@@ -333,7 +376,6 @@ function PublicSite({ config, articles, onSecretLogin }) {
     );
   }
 
-  // STANDARD GRID VIEW
   return (
     <div className="min-h-screen flex flex-col selection:bg-red-900 selection:text-white transition-colors duration-500" style={{ backgroundColor: activeTheme.background, color: activeTheme.text, fontFamily: activeTheme.fontFamily === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif' }}>
       <DarkModeToggle />
@@ -370,7 +412,6 @@ function PublicSite({ config, articles, onSecretLogin }) {
           ))}
         </nav>
 
-        {/* Global Search Bar */}
         <div className="flex justify-center mb-12 mt-6">
            <div className="relative w-full max-w-xl">
              <input
@@ -397,7 +438,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
                 <div className="space-y-12">
                   {categoryArticles.length > 0 ? (
                     categoryArticles.map(article => (
-                      <article key={article.id} onClick={() => setSelectedArticle(article)} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: activeTheme.text }}>
+                      <article key={article.id} onClick={() => handleArticleClick(article)} className="group cursor-pointer border-b-2 pb-8 last:border-0" style={{ borderColor: activeTheme.text }}>
                         {article.imageUrl && (
                           <img 
                             src={article.imageUrl} 
@@ -428,7 +469,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
             ) : (
               <>
                 {featuredArticle && !searchQuery && (
-                  <article onClick={() => setSelectedArticle(featuredArticle)} className="mb-16 animate-in fade-in duration-500 cursor-pointer group">
+                  <article onClick={() => handleArticleClick(featuredArticle)} className="mb-16 animate-in fade-in duration-500 cursor-pointer group">
                     {featuredArticle.imageUrl ? (
                       <img 
                         src={featuredArticle.imageUrl} 
@@ -470,7 +511,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
 
                 <div className={`grid grid-cols-1 ${searchQuery ? 'md:grid-cols-1' : 'md:grid-cols-2'} gap-8 border-t-4 pt-8`} style={{ borderColor: activeTheme.text }}>
                   {(searchQuery ? searchedArticles : otherArticles).map(article => (
-                    <article key={article.id} onClick={() => setSelectedArticle(article)} className={`group cursor-pointer ${searchQuery ? 'flex gap-6 items-center' : ''}`}>
+                    <article key={article.id} onClick={() => handleArticleClick(article)} className={`group cursor-pointer ${searchQuery ? 'flex gap-6 items-center' : ''}`}>
                       {article.imageUrl && (
                         <img 
                           src={article.imageUrl} 
@@ -529,7 +570,7 @@ function PublicSite({ config, articles, onSecretLogin }) {
 }
 
 // --- ADMIN DASHBOARD COMPONENT ---
-function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, onReturnPublic }) {
+function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, analytics, onReturnPublic }) {
   const { user } = useUser();
   const { signOut } = useClerk();
   const [activeTab, setActiveTab] = useState('identity'); 
@@ -551,11 +592,9 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
   const configTeam = config.team || [];
   const teamMember = configTeam.find(m => m.email.toLowerCase() === userEmail);
   
-  // You are an Admin if you are the Master Email OR if you were granted 'admin' in the Access Control tab
   const isAdmin = userEmail === MASTER_EMAIL || (teamMember && teamMember.role === 'admin');
   const roleName = isAdmin ? 'Admin' : 'Moderator';
 
-  // Only Admins can see Identity, Theme, and Team tabs
   const tabs = [
     { id: 'identity', label: 'Identity Settings', icon: Settings, requireAdmin: true },
     { id: 'content', label: 'Article Manager', icon: FileText, requireAdmin: false },
@@ -564,7 +603,6 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
     { id: 'analytics', label: 'Reader Analytics', icon: BarChart, requireAdmin: false },
   ].filter(tab => !tab.requireAdmin || isAdmin);
   
-  // Ensure non-admins don't accidentally load onto a restricted tab
   useEffect(() => {
     if (!isAdmin && ['identity', 'theme', 'team'].includes(activeTab)) {
       setActiveTab('content');
@@ -637,6 +675,12 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
       setConfig({ ...config, team: updatedTeam });
     }
   };
+
+  const totalReads = analytics?.totalReads || 0;
+  const catReads = analytics?.categoryReads || {};
+  const topCategory = Object.keys(catReads).length > 0 
+      ? Object.keys(catReads).reduce((a, b) => catReads[a] > catReads[b] ? a : b) 
+      : "Data Collecting...";
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-200 flex flex-col md:flex-row font-sans selection:bg-red-900 selection:text-white">
@@ -1000,17 +1044,17 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 shadow-lg">
                     <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Reads</div>
-                    <div className="text-5xl font-black text-white">42.8k</div>
-                    <div className="text-green-500 text-xs mt-3 font-bold flex items-center gap-1">↑ 14% vs last period</div>
+                    <div className="text-5xl font-black text-white">{totalReads.toLocaleString()}</div>
+                    <div className="text-green-500 text-xs mt-3 font-bold flex items-center gap-1">Live from Firestore</div>
                   </div>
                   <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 shadow-lg">
                     <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Retention Avg</div>
-                    <div className="text-5xl font-black text-white">6m 14s</div>
-                    <div className="text-blue-400 text-xs mt-3 font-bold uppercase tracking-widest">Optimal Engagement</div>
+                    <div className="text-5xl font-black text-white">~3m 45s</div>
+                    <div className="text-blue-400 text-xs mt-3 font-bold uppercase tracking-widest">Estimated Placeholder</div>
                   </div>
-                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 border-l-4 border-l-red-600 shadow-lg">
+                  <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 border-l-4 border-l-red-600 shadow-lg overflow-hidden">
                     <div className="text-gray-500 text-[10px] font-black uppercase tracking-widest mb-2">Top Influence</div>
-                    <div className="text-4xl font-black text-white uppercase">Theory</div>
+                    <div className="text-3xl md:text-4xl font-black text-white uppercase truncate" title={topCategory}>{topCategory}</div>
                     <div className="text-red-400 text-xs mt-3 font-bold uppercase tracking-widest">Trending Category</div>
                   </div>
                 </div>
