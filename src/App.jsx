@@ -11,7 +11,7 @@ import {
   FileText, ChevronRight, CheckCircle,
   Image as ImageIcon, Eye, Edit3, Link as LinkIcon,
   Plus, Trash2, Users, BarChart, ChevronLeft,
-  Moon, Sun, Search, MessageSquare // UPGRADE: Added MessageSquare icon for Discord
+  Moon, Sun, Search, MessageSquare 
 } from 'lucide-react';
 
 // --- INITIAL DEFAULT DATA ---
@@ -25,7 +25,8 @@ const DEFAULT_CONFIG = {
   },
   theme: { primary: "#990000", accent: "#FFD700", background: "#FDFBF7", text: "#222222", fontFamily: "serif" },
   categories: ["Current Struggle", "Theory & Education", "International", "The Archives", "Non-Marxist"],
-  discordWebhook: "", // UPGRADE: Added blank Discord webhook state
+  discordWebhook: "", 
+  discordPingRole: "",
   team: [
     { email: "admin@vanguard.org", role: "admin" }
   ]
@@ -158,7 +159,8 @@ function VanguardApp() {
           theme: { ...DEFAULT_CONFIG.theme, ...(cloudConfig?.theme || {}) },
           categories: cloudConfig?.categories || DEFAULT_CONFIG.categories,
           team: cloudConfig?.team || DEFAULT_CONFIG.team,
-          discordWebhook: cloudConfig?.discordWebhook || "" // UPGRADE: Sync webhook URL
+          discordWebhook: cloudConfig?.discordWebhook || "",
+          discordPingRole: cloudConfig?.discordPingRole || "" 
         });
       }
       setIsDbReady(true);
@@ -270,6 +272,19 @@ function PublicSite({ config, articles, onSecretLogin, logRead }) {
   
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('vanguard_theme') === 'dark');
 
+  // UPGRADE: Check URL for a specific article ID on load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const articleId = params.get('article');
+    if (articleId && articles.length > 0) {
+      const foundArticle = articles.find(a => a.id.toString() === articleId);
+      if (foundArticle) {
+        setSelectedArticle(foundArticle);
+        if (logRead) logRead(foundArticle.category || 'Uncategorized');
+      }
+    }
+  }, [articles]);
+
   const toggleDarkMode = () => {
     setIsDarkMode(prev => {
       const newVal = !prev;
@@ -301,9 +316,17 @@ function PublicSite({ config, articles, onSecretLogin, logRead }) {
   const otherArticles = searchedArticles.filter(a => featuredArticle ? a.id !== featuredArticle.id : true);
   const categoryArticles = searchedArticles.filter(a => a.category === activeCategory);
 
+  // UPGRADE: Update the URL when an article is clicked so it can be shared
   const handleArticleClick = (article) => {
     setSelectedArticle(article);
+    window.history.pushState({}, '', `?article=${article.id}`);
     if (logRead) logRead(article.category || 'Uncategorized');
+  };
+
+  // UPGRADE: Clear the URL when returning to the grid
+  const handleCloseArticle = () => {
+    setSelectedArticle(null);
+    window.history.pushState({}, '', window.location.pathname);
   };
 
   const DarkModeToggle = () => (
@@ -331,7 +354,7 @@ function PublicSite({ config, articles, onSecretLogin, logRead }) {
         
         <div className="max-w-4xl mx-auto px-4 sm:px-6 flex-1 w-full pb-20">
           <button 
-            onClick={() => setSelectedArticle(null)}
+            onClick={handleCloseArticle} // UPGRADE: Uses new clear function
             className="mb-8 flex items-center gap-2 text-sm font-bold uppercase tracking-widest hover:underline cursor-pointer"
             style={{ color: activeTheme.primary }}
           >
@@ -672,15 +695,18 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
     }
   };
 
-  // UPGRADE: Webhook sender function
+  // UPGRADE: Webhook sender function with hyperlink!
   const announceToDiscord = async (article) => {
     if (!config.discordWebhook) {
       alert("Please enter a Discord Webhook URL in the 'Identity Settings' tab first.");
       return;
     }
     
-    // Parse your theme color into an integer for the Discord Embed
     const decimalColor = parseInt(config.theme.primary.replace('#', ''), 16) || 10027008;
+    const pingContent = config.discordPingRole ? `<@&${config.discordPingRole}>` : null;
+
+    // Build the exact URL for this specific article
+    const articleUrl = `${window.location.origin}/?article=${article.id}`;
 
     try {
       const response = await fetch(config.discordWebhook, {
@@ -688,8 +714,10 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: config.identity.siteName || "Vanguard Databank",
+          content: pingContent, 
           embeds: [{
             title: `📰 NEW DISPATCH: ${article.title}`,
+            url: articleUrl, // UPGRADE: Makes the title clickable!
             description: article.excerpt || article.content?.substring(0, 300) + '...',
             color: decimalColor,
             image: article.imageUrl ? { url: article.imageUrl } : null,
@@ -809,17 +837,31 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                     />
                   </div>
 
-                  {/* UPGRADE: Webhook Settings */}
-                  <div className="space-y-2 pt-6 border-t border-gray-800">
-                    <label className="block text-[10px] font-black uppercase text-[#5865F2] tracking-widest flex items-center gap-2">
-                      <MessageSquare size={12} /> Discord Webhook URL (Optional)
-                    </label>
-                    <input 
-                      type="password" value={config.discordWebhook || ''}
-                      placeholder="https://discord.com/api/webhooks/..."
-                      onChange={(e) => setConfig(prev => ({...prev, discordWebhook: e.target.value}))}
-                      className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm font-mono text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#5865F2]"
-                    />
+                  {/* Webhook Settings */}
+                  <div className="pt-6 border-t border-gray-800 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-black uppercase text-[#5865F2] tracking-widest flex items-center gap-2">
+                        <MessageSquare size={12} /> Discord Webhook URL
+                      </label>
+                      <input 
+                        type="password" value={config.discordWebhook || ''}
+                        placeholder="https://discord.com/api/webhooks/..."
+                        onChange={(e) => setConfig(prev => ({...prev, discordWebhook: e.target.value}))}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm font-mono text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#5865F2]"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-black uppercase text-[#5865F2] tracking-widest">
+                        Discord Role ID to Ping (Optional)
+                      </label>
+                      <input 
+                        type="text" value={config.discordPingRole || ''}
+                        placeholder="e.g., 123456789012345678"
+                        onChange={(e) => setConfig(prev => ({...prev, discordPingRole: e.target.value}))}
+                        className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm font-mono text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#5865F2]"
+                      />
+                      <p className="text-[9px] text-gray-500 uppercase tracking-widest mt-1">Right-click a Discord role and select "Copy Role ID"</p>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -887,7 +929,6 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                           <div className="flex gap-4 items-center shrink-0" onClick={e => e.stopPropagation()}>
                             {isExpanded && (
                               <>
-                                {/* UPGRADE: Discord Announcer Button */}
                                 <button 
                                   onClick={(e) => { e.stopPropagation(); announceToDiscord(article); }}
                                   title="Announce to Discord"
