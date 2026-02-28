@@ -11,7 +11,7 @@ import {
   FileText, ChevronRight, CheckCircle,
   Image as ImageIcon, Eye, Edit3, Link as LinkIcon,
   Plus, Trash2, Users, BarChart, ChevronLeft,
-  Moon, Sun, Search
+  Moon, Sun, Search, MessageSquare // UPGRADE: Added MessageSquare icon for Discord
 } from 'lucide-react';
 
 // --- INITIAL DEFAULT DATA ---
@@ -25,7 +25,7 @@ const DEFAULT_CONFIG = {
   },
   theme: { primary: "#990000", accent: "#FFD700", background: "#FDFBF7", text: "#222222", fontFamily: "serif" },
   categories: ["Current Struggle", "Theory & Education", "International", "The Archives", "Non-Marxist"],
-  integrations: { dbEndpoint: "Firebase Sync Active", apiWebhook: "https://api.redcommune.org/publish", cliToken: "rc_sec_8f92a" },
+  discordWebhook: "", // UPGRADE: Added blank Discord webhook state
   team: [
     { email: "admin@vanguard.org", role: "admin" }
   ]
@@ -93,7 +93,6 @@ export default function AppWrapper() {
 }
 
 function VanguardApp() {
-  // UPGRADE: Uses localStorage so refreshing doesn't kick you out of the admin panel
   const [view, setView] = useState(() => localStorage.getItem('vanguard_view') || 'public'); 
   
   const handleSetView = (newView) => {
@@ -158,7 +157,8 @@ function VanguardApp() {
           identity: { ...DEFAULT_CONFIG.identity, ...(cloudConfig?.identity || {}) },
           theme: { ...DEFAULT_CONFIG.theme, ...(cloudConfig?.theme || {}) },
           categories: cloudConfig?.categories || DEFAULT_CONFIG.categories,
-          team: cloudConfig?.team || DEFAULT_CONFIG.team
+          team: cloudConfig?.team || DEFAULT_CONFIG.team,
+          discordWebhook: cloudConfig?.discordWebhook || "" // UPGRADE: Sync webhook URL
         });
       }
       setIsDbReady(true);
@@ -190,7 +190,7 @@ function VanguardApp() {
     };
   }, [fbUser, db]);
 
-const logRead = async (category) => {
+  const logRead = async (category) => {
     if (!db) return;
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'vanguard-app';
     const analyticsRef = doc(db, 'artifacts', appId, 'public', 'data', 'analytics', 'main');
@@ -198,7 +198,7 @@ const logRead = async (category) => {
       await setDoc(analyticsRef, {
         totalReads: increment(1),
         categoryReads: {
-          [category]: increment(1) // <-- FIXED: This properly nests the stat!
+          [category]: increment(1) 
         }
       }, { merge: true });
     } catch (e) {
@@ -233,7 +233,6 @@ const logRead = async (category) => {
                 <h2 className="text-2xl text-white font-bold uppercase tracking-wider">Vanguard CMS Access</h2>
                 <p className="text-gray-400 text-sm mt-2 mb-6">Authorized personnel only.</p>
               </div>
-              {/* UPGRADE: Removed forceRedirectUrl to prevent app refresh bug */}
               <SignIn routing="hash" />
               <button 
                 onClick={() => handleSetView('public')}
@@ -269,7 +268,6 @@ function PublicSite({ config, articles, onSecretLogin, logRead }) {
   const [selectedArticle, setSelectedArticle] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   
-  // UPGRADE: Uses localStorage to remember your dark mode setting permanently
   const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('vanguard_theme') === 'dark');
 
   const toggleDarkMode = () => {
@@ -585,10 +583,6 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
 
  const userEmail = (user?.primaryEmailAddress?.emailAddress || '').toLowerCase();
   
-  // ==========================================
-  // SECURE ROLE-BASED ACCESS
-  // ==========================================
-  // Put your exact login email here:
   const MASTER_EMAIL = "bassenogmusen@gmail.com"; 
 
   const configTeam = config.team || [];
@@ -675,6 +669,41 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
     if (window.confirm(`Revoke access for ${emailToRemove}?`)) {
       const updatedTeam = (config.team || []).filter(m => m.email !== emailToRemove);
       setConfig({ ...config, team: updatedTeam });
+    }
+  };
+
+  // UPGRADE: Webhook sender function
+  const announceToDiscord = async (article) => {
+    if (!config.discordWebhook) {
+      alert("Please enter a Discord Webhook URL in the 'Identity Settings' tab first.");
+      return;
+    }
+    
+    // Parse your theme color into an integer for the Discord Embed
+    const decimalColor = parseInt(config.theme.primary.replace('#', ''), 16) || 10027008;
+
+    try {
+      const response = await fetch(config.discordWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: config.identity.siteName || "Vanguard Databank",
+          embeds: [{
+            title: `📰 NEW DISPATCH: ${article.title}`,
+            description: article.excerpt || article.content?.substring(0, 300) + '...',
+            color: decimalColor,
+            image: article.imageUrl ? { url: article.imageUrl } : null,
+            footer: { text: `By ${article.author || "Anonymous"} • ${article.category}` },
+            timestamp: new Date().toISOString()
+          }]
+        })
+      });
+
+      if (response.ok) alert("Successfully announced to Discord!");
+      else alert("Failed to send to Discord. Double check your Webhook URL.");
+    } catch (err) {
+      console.error(err);
+      alert("Error reaching Discord servers.");
     }
   };
 
@@ -779,6 +808,19 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                       className="w-full h-48 bg-gray-950 border border-gray-800 rounded-lg p-5 text-white leading-relaxed focus:outline-none focus:ring-1 focus:ring-red-500/50 whitespace-pre-wrap"
                     />
                   </div>
+
+                  {/* UPGRADE: Webhook Settings */}
+                  <div className="space-y-2 pt-6 border-t border-gray-800">
+                    <label className="block text-[10px] font-black uppercase text-[#5865F2] tracking-widest flex items-center gap-2">
+                      <MessageSquare size={12} /> Discord Webhook URL (Optional)
+                    </label>
+                    <input 
+                      type="password" value={config.discordWebhook || ''}
+                      placeholder="https://discord.com/api/webhooks/..."
+                      onChange={(e) => setConfig(prev => ({...prev, discordWebhook: e.target.value}))}
+                      className="w-full bg-gray-950 border border-gray-800 rounded-lg p-3 text-sm font-mono text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#5865F2]"
+                    />
+                  </div>
                 </div>
               </section>
             )}
@@ -845,6 +887,15 @@ function AdminDashboard({ db, fbUser, config, setConfig, articles, setArticles, 
                           <div className="flex gap-4 items-center shrink-0" onClick={e => e.stopPropagation()}>
                             {isExpanded && (
                               <>
+                                {/* UPGRADE: Discord Announcer Button */}
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); announceToDiscord(article); }}
+                                  title="Announce to Discord"
+                                  className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-[#5865F2] hover:text-white bg-[#5865F2]/10 hover:bg-[#5865F2] px-3 py-1 rounded-md transition-colors"
+                                >
+                                  <MessageSquare size={14}/> Publish
+                                </button>
+                                
                                 <button 
                                   onClick={() => togglePreview(article.id)}
                                   className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-blue-400 hover:text-blue-300 bg-blue-400/10 px-3 py-1 rounded-md"
